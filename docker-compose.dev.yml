@@ -1,0 +1,17 @@
+# Optional. Postgres only – use when you prefer Docker for DB; backend/frontend run locally.
+# For default dev flow (no Docker), see README and docs/setup-local.md.
+services:
+  postgres:
+    image: postgres:16
+    container_name: hospital-postgres
+    environment:
+      POSTGRES_DB: hospital
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:

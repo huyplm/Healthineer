@@ -1,0 +1,28 @@
+# Optional / deploy only. Not required for local dev (use PostgreSQL on host + run backend with .\mvnw.cmd spring-boot:run).
+services:
+  postgres:
+    image: postgres:16
+    container_name: hospital-postgres
+    environment:
+      POSTGRES_DB: hospital
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: hospital-backend
+    depends_on:
+      - postgres
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hospital
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: pass
+    ports:
+      - "8080:8080"
+
+volumes:
+  pg_data:
