@@ -35,3 +35,11 @@ app:
     expiration-minutes: 180
   rate-limit:
     requests-per-minute: 120
+  ai:
+    groq:
+      api-key: ${GROQ_API_KEY:}
+      model: llama-3.3-70b-versatile
+      base-url: https://api.groq.com/openai/v1
+    openfda:
+      base-url: https://api.fda.gov/drug
+    fallback-to-mock: true

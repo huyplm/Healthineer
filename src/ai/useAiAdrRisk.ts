@@ -1,29 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import type { AiAdrRisk } from './types';
+import { apiFetch } from '@/api/apiFetch';
 
-const MOCK_DELAY_MS = 600;
+async function fetchAdrRisk(patientId: string, context?: { age?: number; currentMedicationCount?: number }): Promise<AiAdrRisk> {
+  try {
+    return await apiFetch<AiAdrRisk>(`/api/ai/patients/${patientId}/adr-risk`);
+  } catch {
+    return fallbackMock(context);
+  }
+}
 
-async function fetchAdrRisk(_patientId: string, context?: { age?: number; currentMedicationCount?: number }): Promise<AiAdrRisk> {
-  await new Promise((r) => setTimeout(r, MOCK_DELAY_MS));
+function fallbackMock(context?: { age?: number; currentMedicationCount?: number }): AiAdrRisk {
   const age = context?.age ?? 45;
   const medCount = context?.currentMedicationCount ?? 2;
   const factors: string[] = [];
   let score = 20;
-  if (age >= 65) {
-    factors.push('Elderly (≥65)');
-    score += 25;
-  }
-  if (medCount >= 5) {
-    factors.push('Polypharmacy');
-    score += 30;
-  }
-  if (medCount >= 3) {
-    factors.push('Multiple concurrent medications');
-    score += 15;
-  }
-  if (factors.length === 0) {
-    factors.push('No major risk factors');
-  }
+  if (age >= 65) { factors.push('Elderly (≥65)'); score += 25; }
+  if (medCount >= 5) { factors.push('Polypharmacy'); score += 30; }
+  if (medCount >= 3) { factors.push('Multiple concurrent medications'); score += 15; }
+  if (factors.length === 0) factors.push('No major risk factors');
   score = Math.min(100, score);
   const level: AiAdrRisk['level'] = score >= 60 ? 'high' : score >= 35 ? 'medium' : 'low';
   return { level, score, factors };
@@ -31,7 +26,6 @@ async function fetchAdrRisk(_patientId: string, context?: { age?: number; curren
 
 export interface UseAiAdrRiskParams {
   patientId: string;
-  /** Optional: để mock logic theo tuổi/số thuốc */
   context?: { age?: number; currentMedicationCount?: number };
 }
 

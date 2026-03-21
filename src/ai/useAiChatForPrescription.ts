@@ -1,26 +1,38 @@
 import { useState, useCallback } from 'react';
 import type { AiChatMessage } from './types';
+import { apiFetch } from '@/api/apiFetch';
 
-const MOCK_DELAY_MS = 1000;
-
-const MOCK_ANSWERS: Record<string, string> = {
-  default: 'Dựa trên đơn thuốc hiện tại, các thuốc đã được kê phù hợp với chẩn đoán. Bệnh nhân cần tuân thủ liều và thời gian dùng. Nếu có tương tác thuốc đã được cảnh báo, vui lòng xem mục AI Drug Safety.',
-  interaction: 'Trong đơn có Paracetamol và Ibuprofen. Không nên uống cùng lúc; nên cách nhau ít nhất 4 giờ. Omeprazole giúp bảo vệ dạ dày khi dùng thuốc giảm đau.',
-  kidney: 'Theo hồ sơ, cần chỉnh liều theo chức năng thận cho các thuốc thải qua thận. Paracetamol thường an toàn; nên giảm liều hoặc tránh NSAID nếu eGFR < 30.',
-  summary: 'Đơn hiện tại gồm: (1) Thuốc giảm đau hạ sốt 3 lần/ngày trong 5 ngày. (2) Thuốc bảo vệ dạ dày uống buổi sáng. Bệnh nhân nên uống sau ăn, không tự ý tăng liều.',
-};
-
-function getMockAnswer(question: string): string {
-  const q = question.toLowerCase();
-  if (q.includes('tương tác') || q.includes('interaction')) return MOCK_ANSWERS.interaction;
-  if (q.includes('thận') || q.includes('kidney') || q.includes('chức năng thận')) return MOCK_ANSWERS.kidney;
-  if (q.includes('tóm tắt') || q.includes('summary') || q.includes('bệnh nhân')) return MOCK_ANSWERS.summary;
-  return MOCK_ANSWERS.default;
+interface AiChatApiResponse {
+  id: string;
+  role: string;
+  content: string;
+  createdAt: string;
 }
 
-async function sendToAi(_prescriptionId: string, question: string): Promise<string> {
-  await new Promise((r) => setTimeout(r, MOCK_DELAY_MS));
-  return getMockAnswer(question);
+async function sendToAi(prescriptionId: string, question: string): Promise<string> {
+  try {
+    const res = await apiFetch<AiChatApiResponse>('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        prescriptionId: Number(prescriptionId) || 0,
+        message: question,
+      }),
+    });
+    return res.content;
+  } catch {
+    return fallbackMock(question);
+  }
+}
+
+function fallbackMock(question: string): string {
+  const q = question.toLowerCase();
+  if (q.includes('interaction'))
+    return 'In this prescription, Paracetamol and Ibuprofen should not be taken simultaneously; space at least 4 hours apart. Omeprazole provides GI protection.';
+  if (q.includes('kidney') || q.includes('renal'))
+    return 'Adjust dosing for renal-impaired patients. Paracetamol is generally safe; avoid or reduce NSAIDs if eGFR < 30.';
+  if (q.includes('summary') || q.includes('patient'))
+    return 'Current prescription includes: (1) Analgesic/antipyretic 3x/day for 5 days. (2) Gastroprotective agent morning dose. Patient should take medications after meals.';
+  return 'Based on the current prescription, the medications are appropriate for the diagnosis. The patient should adhere to the prescribed dosage and timing. Review the AI Drug Safety section for any flagged interactions.';
 }
 
 export interface UseAiChatForPrescriptionParams {

@@ -1,38 +1,30 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { AiDrugInteraction } from './types';
-
-const MOCK_DELAY_MS = 800;
+import { apiFetch } from '@/api/apiFetch';
 
 async function fetchInteractions(
-  _patientId: string,
+  patientId: string,
   medicationIds: string[],
-  _activeMedicationsOfPatient: string[]
 ): Promise<AiDrugInteraction[]> {
-  await new Promise((r) => setTimeout(r, MOCK_DELAY_MS));
+  try {
+    return await apiFetch<AiDrugInteraction[]>('/api/ai/prescriptions/interactions', {
+      method: 'POST',
+      body: JSON.stringify({
+        patientId: Number(patientId) || 0,
+        medications: medicationIds.map((id) => Number(id) || 0),
+      }),
+    });
+  } catch {
+    return fallbackMock(medicationIds);
+  }
+}
+
+function fallbackMock(medicationIds: string[]): AiDrugInteraction[] {
   if (medicationIds.length < 2) return [];
-  const names = ['Paracetamol', 'Ibuprofen', 'Omeprazole', 'Amoxicillin', 'Loperamide'];
   return [
-    {
-      id: 'int1',
-      severity: 'high',
-      message: 'Increased risk of GI bleeding when NSAID and PPI are used long-term together.',
-      drugsInvolved: [names[0] ?? 'Drug A', names[1] ?? 'Drug B'],
-      recommendation: 'Consider monitoring or switching analgesic group.',
-    },
-    {
-      id: 'int2',
-      severity: 'moderate',
-      message: 'Paracetamol and Ibuprofen can be used alternately but avoid simultaneous use.',
-      drugsInvolved: [names[0] ?? 'Paracetamol', names[2] ?? 'Ibuprofen'],
-      recommendation: 'Space at least 4 hours apart if both needed.',
-    },
-    {
-      id: 'int3',
-      severity: 'low',
-      message: 'Some drugs may mildly affect liver metabolism.',
-      drugsInvolved: names.slice(0, 2),
-      recommendation: 'Monitor liver function if used long-term.',
-    },
+    { id: 'int1', severity: 'high', message: 'Increased risk of GI bleeding when NSAID and PPI are used long-term together.', drugsInvolved: ['Paracetamol', 'Ibuprofen'], recommendation: 'Consider monitoring or switching analgesic group.' },
+    { id: 'int2', severity: 'moderate', message: 'Paracetamol and Ibuprofen can be used alternately but avoid simultaneous use.', drugsInvolved: ['Paracetamol', 'Omeprazole'], recommendation: 'Space at least 4 hours apart if both needed.' },
+    { id: 'int3', severity: 'low', message: 'Some drugs may mildly affect liver metabolism.', drugsInvolved: ['Paracetamol', 'Ibuprofen'], recommendation: 'Monitor liver function if used long-term.' },
   ];
 }
 
@@ -72,18 +64,13 @@ export function useAiCheckDrugInteractions(
     }
     setIsLoading(true);
     setError(null);
-    fetchInteractions(
-      params.patientId,
-      medIds,
-      params.activeMedicationsOfPatient ?? []
-    )
+    fetchInteractions(params.patientId, medIds)
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e : new Error(String(e))))
       .finally(() => setIsLoading(false));
   }, [
     params?.patientId,
     params?.medicationsInPrescription,
-    params?.activeMedicationsOfPatient,
   ]);
 
   useEffect(() => {

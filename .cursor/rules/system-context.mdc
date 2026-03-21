@@ -1,0 +1,29 @@
+---
+description: System context document - read docs/SYSTEM_CONTEXT.md before making any changes
+alwaysApply: true
+---
+
+# Healthineer System Context
+
+Before making ANY code changes, read `docs/SYSTEM_CONTEXT.md` for full system context including:
+- Architecture (Clean Architecture, frontend/backend split)
+- All API endpoints and their auth requirements
+- AI integration (Groq Cloud + openFDA with mock fallback)
+- Domain entities and relationships
+- Configuration (profiles, ports, env vars)
+- Known issues and gotchas
+
+## Key Rules
+
+1. **Update docs/SYSTEM_CONTEXT.md** after every architectural change (new endpoints, new entities, config changes, new integrations)
+2. Add a row to the **Changelog** table (section 11) with date, description, and affected files
+3. Update **Known Issues** (section 12) if you discover or fix any gotchas
+
+## Architecture Quick Reference
+
+- Frontend: `src/` - React 19 + TypeScript + MUI
+- Backend: `backend/src/main/java/com/hospital/pharmacy/` - Spring Boot 3.2, Clean Architecture
+- AI: `infrastructure/ai/` (GroqChatClient, OpenFdaClient) → `domain/service/AiService.java` → `presentation/AiController.java`
+- Frontend AI hooks: `src/ai/*.ts` → call backend API, fallback to local mock
+- Auth: JWT (backend) / localStorage mock (frontend)
+- Profiles: default (PostgreSQL) / local (H2 + Groq key, port 8081)

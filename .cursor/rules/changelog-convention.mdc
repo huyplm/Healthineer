@@ -1,0 +1,16 @@
+---
+description: Always update SYSTEM_CONTEXT.md changelog after code changes
+globs: "**/*.{java,ts,tsx,yml,yaml}"
+alwaysApply: false
+---
+
+# Changelog Convention
+
+When modifying any source file (.java, .ts, .tsx, .yml), also update `docs/SYSTEM_CONTEXT.md`:
+
+1. Add a row to **Section 11 (Changelog)** with format: `| YYYY-MM-DD | Description of change | affected/files |`
+2. If you added a new API endpoint, update **Section 4 (API Endpoints)**
+3. If you added a new entity, update **Section 3 (Domain Entities)**
+4. If you changed AI behavior, update **Section 5 (AI Integration)**
+5. If you changed config, update **Section 7 (Configuration)**
+6. If you found or fixed a bug, update **Section 12 (Known Issues)**

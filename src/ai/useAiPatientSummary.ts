@@ -1,14 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import type { AiPatientSummary } from './types';
-
-const MOCK_DELAY_MS = 1200;
+import { apiFetch } from '@/api/apiFetch';
 
 async function fetchSummary(patientId: string): Promise<AiPatientSummary> {
-  await new Promise((r) => setTimeout(r, MOCK_DELAY_MS));
-  const now = new Date().toISOString();
+  try {
+    return await apiFetch<AiPatientSummary>(`/api/ai/patients/${patientId}/summary`);
+  } catch {
+    return fallbackMock(patientId);
+  }
+}
+
+function fallbackMock(patientId: string): AiPatientSummary {
   return {
     summary: `Patient ${patientId.slice(-3)} has history of visits to Internal Medicine and Surgery. Prescribed for pharyngitis, digestive disorder. Notable conditions (hypertension, diabetes). Allergy: Penicillin. Last visit 18/02/2025, diagnosis acute pharyngitis, prescription sent to pharmacy. Monitor blood glucose and BP when on new medications.`,
-    updatedAt: now,
+    updatedAt: new Date().toISOString(),
     sources: ['prescriptions', 'visits', 'allergies', 'conditions', 'notes'],
   };
 }
