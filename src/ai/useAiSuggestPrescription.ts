@@ -6,22 +6,10 @@ async function fetchSuggestions(
   patientId: string,
   diagnosis: string,
 ): Promise<AiSuggestedMedication[]> {
-  try {
-    return await apiFetch<AiSuggestedMedication[]>('/api/ai/prescriptions/suggest', {
-      method: 'POST',
-      body: JSON.stringify({ patientId: Number(patientId) || 0, diagnosis }),
-    });
-  } catch {
-    return fallbackMock();
-  }
-}
-
-function fallbackMock(): AiSuggestedMedication[] {
-  return [
-    { medicationId: 'm2', name: 'Paracetamol 500mg', dose: '500', frequency: '3x', durationDays: 5, route: 'oral', reasoning: 'Pain and fever reduction appropriate for diagnosis.', confidence: 0.92 },
-    { medicationId: 'm5', name: 'Omeprazole 20mg', dose: '20', frequency: '1x', durationDays: 7, route: 'oral', reasoning: 'Gastroprotection during analgesic therapy.', confidence: 0.78 },
-    { medicationId: 'm3', name: 'Ibuprofen 400mg', dose: '400', frequency: '2x', durationDays: 3, route: 'oral', reasoning: 'Anti-inflammatory support for pain management.', confidence: 0.65 },
-  ];
+  return apiFetch<AiSuggestedMedication[]>('/api/ai/prescriptions/suggest', {
+    method: 'POST',
+    body: JSON.stringify({ patientId: Number(patientId), diagnosis }),
+  });
 }
 
 export interface UseAiSuggestPrescriptionParams {
@@ -39,7 +27,7 @@ export interface UseAiSuggestPrescriptionResult {
 
 export function useAiSuggestPrescription(
   params: UseAiSuggestPrescriptionParams | null,
-  _options?: { enabled?: boolean }
+  _options?: { enabled?: boolean },
 ): UseAiSuggestPrescriptionResult {
   const [data, setData] = useState<AiSuggestedMedication[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);

@@ -12,22 +12,25 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestInit & { skipAuth?: boolean } = {},
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const { skipAuth, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
-  const stored = localStorage.getItem('healthineer_token');
-  if (stored) {
-    headers['Authorization'] = `Bearer ${stored}`;
+  if (!skipAuth) {
+    const stored = localStorage.getItem('healthineer_token');
+    if (stored) {
+      headers['Authorization'] = `Bearer ${stored}`;
+    }
   }
 
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 

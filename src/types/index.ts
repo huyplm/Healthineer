@@ -14,11 +14,13 @@ export interface Allergy {
   id: string;
   name: string;
   severity?: 'mild' | 'moderate' | 'severe';
+  reaction?: string;
 }
 
 export interface Condition {
   id: string;
   name: string;
+  severity?: string;
   icdCode?: string;
 }
 
@@ -48,9 +50,9 @@ export interface VisitRecord {
 }
 
 // Medication
-export type MedicationForm = 'tablet' | 'capsule' | 'syrup' | 'injection' | 'cream' | 'drops' | 'suppository';
+export type MedicationForm = 'tablet' | 'capsule' | 'syrup' | 'injection' | 'cream' | 'drops' | 'suppository' | string;
 
-export type RouteOfAdmin = 'oral' | 'injection' | 'iv' | 'topical' | 'sublingual' | 'rectal';
+export type RouteOfAdmin = 'oral' | 'injection' | 'iv' | 'topical' | 'sublingual' | 'rectal' | string;
 
 export interface Medication {
   id: string;
@@ -64,11 +66,13 @@ export interface Medication {
   atcCode?: string;
   group: string;
   contraindications?: string;
+  active?: boolean;
 }
 
 export interface MedicationBatch {
   id: string;
   medicationId: string;
+  medicationName?: string;
   batchNumber: string;
   manufactureDate: string;
   expiryDate: string;
@@ -83,18 +87,20 @@ export type PrescriptionStatus =
   | 'reviewed'
   | 'approved'
   | 'dispensed'
-  | 'completed';
+  | 'completed'
+  | string;
 
-export type FrequencyType = '1x' | '2x' | '3x' | '4x' | 'prn' | 'custom';
+export type FrequencyType = '1x' | '2x' | '3x' | '4x' | 'prn' | 'custom' | string;
 
 export interface PrescriptionItem {
   id: string;
   medicationId: string;
   medication?: Medication;
+  medicationName?: string;
   dose: string;
   unit: string;
   frequency: FrequencyType;
-  duration: number; // days
+  duration: number;
   route: RouteOfAdmin;
   instructions?: string;
 }
@@ -104,8 +110,10 @@ export interface Prescription {
   code: string;
   patientId: string;
   patient?: Patient;
+  patientName?: string;
   doctorId: string;
   doctor?: User;
+  doctorName?: string;
   department: string;
   diagnosis: string;
   clinicalNotes?: string;
@@ -139,11 +147,14 @@ export interface InventoryRecord {
 // Chat
 export interface Message {
   id: string;
-  conversationId: string;
+  conversationId?: string;
+  prescriptionId?: string;
   senderId: string;
   sender?: User;
+  senderName?: string;
   content: string;
   createdAt: string;
+  messageType?: string;
 }
 
 export interface Conversation {

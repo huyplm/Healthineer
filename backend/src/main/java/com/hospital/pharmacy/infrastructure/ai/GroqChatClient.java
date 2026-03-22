@@ -100,10 +100,10 @@ public class GroqChatClient {
                 return text.substring(start + 3, end).trim();
             }
         }
-        start = text.indexOf('[');
-        if (start >= 0) return text.substring(start);
-        start = text.indexOf('{');
-        if (start >= 0) return text.substring(start);
+        int arrStart = text.indexOf('[');
+        int objStart = text.indexOf('{');
+        if (arrStart >= 0 && (objStart < 0 || arrStart < objStart)) return text.substring(arrStart);
+        if (objStart >= 0) return text.substring(objStart);
         return text;
     }
 

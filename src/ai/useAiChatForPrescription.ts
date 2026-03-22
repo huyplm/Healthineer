@@ -10,29 +10,14 @@ interface AiChatApiResponse {
 }
 
 async function sendToAi(prescriptionId: string, question: string): Promise<string> {
-  try {
-    const res = await apiFetch<AiChatApiResponse>('/api/ai/chat', {
-      method: 'POST',
-      body: JSON.stringify({
-        prescriptionId: Number(prescriptionId) || 0,
-        message: question,
-      }),
-    });
-    return res.content;
-  } catch {
-    return fallbackMock(question);
-  }
-}
-
-function fallbackMock(question: string): string {
-  const q = question.toLowerCase();
-  if (q.includes('interaction'))
-    return 'In this prescription, Paracetamol and Ibuprofen should not be taken simultaneously; space at least 4 hours apart. Omeprazole provides GI protection.';
-  if (q.includes('kidney') || q.includes('renal'))
-    return 'Adjust dosing for renal-impaired patients. Paracetamol is generally safe; avoid or reduce NSAIDs if eGFR < 30.';
-  if (q.includes('summary') || q.includes('patient'))
-    return 'Current prescription includes: (1) Analgesic/antipyretic 3x/day for 5 days. (2) Gastroprotective agent morning dose. Patient should take medications after meals.';
-  return 'Based on the current prescription, the medications are appropriate for the diagnosis. The patient should adhere to the prescribed dosage and timing. Review the AI Drug Safety section for any flagged interactions.';
+  const res = await apiFetch<AiChatApiResponse>('/api/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({
+      prescriptionId: Number(prescriptionId),
+      message: question,
+    }),
+  });
+  return res.content;
 }
 
 export interface UseAiChatForPrescriptionParams {
@@ -53,7 +38,9 @@ const QUICK_QUESTIONS = [
   'Summarize this prescription for the patient.',
 ];
 
-export function useAiChatForPrescription(params: UseAiChatForPrescriptionParams | null): UseAiChatForPrescriptionResult {
+export function useAiChatForPrescription(
+  params: UseAiChatForPrescriptionParams | null,
+): UseAiChatForPrescriptionResult {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -83,14 +70,8 @@ export function useAiChatForPrescription(params: UseAiChatForPrescriptionParams 
         .catch((e) => setError(e instanceof Error ? e : new Error(String(e))))
         .finally(() => setIsLoading(false));
     },
-    [params?.prescriptionId]
+    [params?.prescriptionId],
   );
 
-  return {
-    messages,
-    isLoading,
-    error,
-    ask,
-    quickQuestions: QUICK_QUESTIONS,
-  };
+  return { messages, isLoading, error, ask, quickQuestions: QUICK_QUESTIONS };
 }

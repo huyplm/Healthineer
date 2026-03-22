@@ -1,9 +1,29 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { User, UserRole } from '@/types';
-import { mockUsers } from '@/api';
+import { apiFetch } from '@/api/apiFetch';
 
-const STORAGE_KEY = 'healthineer_auth';
+const AUTH_KEY = 'healthineer_auth';
+const TOKEN_KEY = 'healthineer_token';
+
+interface AuthLoginResponse {
+  accessToken: string;
+  tokenType: string;
+  userId: number;
+  username: string;
+  fullName: string;
+  role: string;
+}
+
+function mapBackendRole(role: string): UserRole {
+  const map: Record<string, UserRole> = {
+    DOCTOR: 'doctor',
+    PHARMACIST: 'pharmacist',
+    ADMIN: 'admin',
+    NURSE: 'nurse',
+  };
+  return map[role] ?? 'doctor';
+}
 
 interface AuthState {
   user: User | null;
@@ -11,7 +31,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (name: string, role: UserRole) => void;
+  login: (username: string, password: string) => Promise<string | null>;
   logout: () => void;
 }
 
@@ -19,11 +39,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function loadStored(): AuthState {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const stored = localStorage.getItem(AUTH_KEY);
+    if (token && stored) {
       const { user } = JSON.parse(stored) as { user: User };
-      const found = mockUsers.find((u) => u.id === user.id && u.role === user.role);
-      if (found) return { user: found, isAuthenticated: true };
+      if (user?.id) return { user, isAuthenticated: true };
     }
   } catch {
     // ignore
@@ -34,32 +54,40 @@ function loadStored(): AuthState {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(loadStored);
 
-  const login = useCallback((name: string, role: UserRole) => {
-    const existing = mockUsers.find((u) => u.role === role);
-    const user: User = existing
-      ? { ...existing, name: name || existing.name }
-      : {
-          id: `u_${Date.now()}`,
-          name: name || role,
-          role,
-        };
-    setState({ user, isAuthenticated: true });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user }));
+  const login = useCallback(async (username: string, password: string): Promise<string | null> => {
+    try {
+      localStorage.removeItem('healthineer_token');
+      const res = await apiFetch<AuthLoginResponse>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+        skipAuth: true,
+      });
+
+      const user: User = {
+        id: String(res.userId),
+        name: res.fullName,
+        role: mapBackendRole(res.role),
+        email: `${res.username}@hospital.com`,
+      };
+
+      localStorage.setItem(TOKEN_KEY, res.accessToken);
+      localStorage.setItem(AUTH_KEY, JSON.stringify({ user }));
+      setState({ user, isAuthenticated: true });
+      return null;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Login failed';
+      return msg;
+    }
   }, []);
 
   const logout = useCallback(() => {
     setState({ user: null, isAuthenticated: false });
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        ...state,
-        login,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={{ ...state, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
