@@ -17,33 +17,46 @@ Hospital drug management and e-prescribing platform with AI-assisted clinical de
 | AI (LLM) | Groq Cloud API (Llama 3.3 70B) | external |
 | AI (Drug data) | openFDA Drug Label API | external |
 
+### Current Integration Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Frontend → Backend Auth | **Connected** | Real JWT login via POST /api/auth/login |
+| Frontend → Backend CRUD | **Connected** | All CRUD calls go to backend with mock fallback |
+| Frontend → Backend AI | **Connected** | 6 AI hooks call backend directly; backend handles fallback |
+| Backend → Groq Cloud | **Connected** | Real AI responses with mock fallback on failure |
+| Backend → openFDA | **Connected** | Real drug interaction data |
+
 ---
 
 ## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Frontend (React SPA)                           │
-│  src/ai/       → 6 hooks call backend API       │
-│  src/api/      → apiFetch.ts (shared HTTP)      │
-│  src/modules/  → UI pages per domain            │
-│  src/auth/     → Mock login (localStorage)      │
-└──────────────────┬──────────────────────────────┘
-                   │ HTTP (JWT Bearer)
-┌──────────────────▼──────────────────────────────┐
-│  Backend (Spring Boot)                          │
-│  presentation/  → REST controllers             │
-│  domain/service → Business logic + AiService    │
-│  infrastructure/                                │
-│    ├── ai/      → GroqChatClient, OpenFdaClient │
-│    ├── security → JWT, CORS, RateLimit          │
-│    └── config/  → DataSeeder                    │
-└──────────┬─────────────────┬────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  Frontend (React SPA)                                   │
+│  src/auth/     → JWT login (username/password → backend)│
+│  src/api/      → apiFetch.ts (shared HTTP + JWT auth)   │
+│  src/api/      → client.ts (backend API + mock fallback)│
+│  src/ai/       → 6 hooks call backend AI endpoints      │
+│  src/modules/  → UI pages per domain                    │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP (JWT Bearer)
+┌────────────────────────▼────────────────────────────────┐
+│  Backend (Spring Boot)                                  │
+│  presentation/  → 27 REST endpoints + exception mgmt   │
+│  application/   → DTOs + response mappers              │
+│  domain/service → Business logic + AiService           │
+│  infrastructure/                                        │
+│    ├── ai/      → GroqChatClient, OpenFdaClient        │
+│    ├── security → JWT, CORS, RateLimit                 │
+│    └── config/  → DataSeeder                           │
+└──────────┬─────────────────┬────────────────────────────┘
            │                 │
-    ┌──────▼──────┐   ┌─────▼──────┐
-    │ PostgreSQL  │   │ Groq Cloud │
-    │ / H2        │   │ openFDA    │
-    └─────────────┘   └────────────┘
+    ┌──────▼──────┐   ┌─────▼──────────┐
+    │ PostgreSQL  │   │  External APIs │
+    │ / H2        │   │  ├─ Groq Cloud │
+    └─────────────┘   │  └─ openFDA    │
+                      └────────────────┘
 ```
 
 ### Clean Architecture Layers
@@ -75,6 +88,8 @@ Hospital drug management and e-prescribing platform with AI-assisted clinical de
 
 ```
 DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
+  │         │           │          │           │
+  Doctor   Doctor    Pharmacist  Pharmacist  Pharmacist
 ```
 
 ### User Roles & Access
@@ -89,15 +104,17 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 
 ## 4. API Endpoints
 
+**27 endpoints** across 6 controllers. All require JWT unless marked public.
+
 ### Auth
 | Verb | Path | Auth | Description |
 |------|------|------|-------------|
-| POST | /api/auth/login | public | Returns JWT + user info |
+| POST | /api/auth/login | public | Returns JWT (`accessToken`) + user info |
 
 ### Patients
 | Verb | Path | Auth | Description |
 |------|------|------|-------------|
-| GET | /api/patients | JWT | List/search patients |
+| GET | /api/patients | JWT | List/search patients (paginated) |
 | GET | /api/patients/{id} | JWT | Get patient detail |
 | POST | /api/patients | JWT | Create patient |
 | PUT | /api/patients/{id} | JWT | Update patient |
@@ -108,12 +125,12 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 ### Prescriptions
 | Verb | Path | Auth | Description |
 |------|------|------|-------------|
-| GET | /api/prescriptions/my | JWT | Doctor's prescriptions |
-| GET | /api/prescriptions/{id} | JWT | Prescription detail |
+| GET | /api/prescriptions/my | JWT | Doctor's prescriptions (paginated) |
+| GET | /api/prescriptions/{id} | JWT | Prescription detail with items |
 | POST | /api/prescriptions | JWT | Create draft |
 | PUT | /api/prescriptions/{id}/submit | JWT | Submit for review |
 | PUT | /api/prescriptions/{id}/items | JWT | Update items |
-| GET | /api/prescriptions/queue | JWT | Pharmacy queue |
+| GET | /api/prescriptions/queue | JWT | Pharmacy queue (paginated) |
 | PUT | /api/prescriptions/{id}/review | JWT | Pharmacist review |
 | PUT | /api/prescriptions/{id}/approve | JWT | Approve |
 | PUT | /api/prescriptions/{id}/dispense | JWT | Dispense |
@@ -121,7 +138,7 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 ### Medications
 | Verb | Path | Auth | Description |
 |------|------|------|-------------|
-| GET | /api/medications | JWT | Search/list medications |
+| GET | /api/medications | JWT | Search/list medications (`?q=` + paginated) |
 | GET | /api/medications/{id} | JWT | Medication detail |
 | POST | /api/medications | JWT | Create medication |
 
@@ -131,9 +148,9 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 | GET | /api/inventory/{location} | JWT | Batches by location |
 | GET | /api/inventory/medication/{id} | JWT | Batches by medication |
 | POST | /api/inventory/batches | JWT | Add batch |
-| PUT | /api/inventory/batches/{id}/adjust | JWT | Adjust quantity |
+| PUT | /api/inventory/batches/{id}/adjust | JWT | Adjust quantity (`?delta=`) |
 | GET | /api/inventory/expiry-risk | JWT | Expiry risk report |
-| GET | /api/inventory/health | JWT | Inventory health |
+| GET | /api/inventory/health | public | Inventory health overview |
 
 ### Messages
 | Verb | Path | Auth | Description |
@@ -155,28 +172,35 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 
 ## 5. AI Integration Architecture
 
-### Strategy: Real AI with Mock Fallback
+### Strategy: Real AI with Backend Fallback
 
 ```
-Request → GROQ_API_KEY set? 
-  ├─ Yes → Call Groq/openFDA → Success? → Return real AI response
-  │                            └─ Fail + fallback=true → Return mock data
-  └─ No → Return mock data (same as before integration)
+Frontend hook → apiFetch (with JWT) → Backend AiController
+                                          │
+                                    AiService method
+                                          │
+                                 GROQ_API_KEY set?
+                                   ├─ Yes → Call Groq/openFDA
+                                   │        ├─ Success → Return real AI response
+                                   │        └─ Fail + fallback=true → Return mock
+                                   └─ No → Return mock data
 ```
 
-### Backend Components
+**Key change (Phase 2):** Frontend AI hooks no longer have local mock fallbacks. All AI logic is handled by the backend's `AiService`, which decides whether to use real AI or mock data. This avoids duplicating fallback logic across 6 hooks.
+
+### Backend AI Components
 
 | File | Role |
 |------|------|
-| `AiConfigProperties.java` | Binds `app.ai.*` YAML config |
-| `GroqChatClient.java` | HTTP client for Groq OpenAI-compatible API. Methods: `chat()`, `chatAsJson()` |
+| `AiConfigProperties.java` | Binds `app.ai.*` YAML config. Method `isRealAiEnabled()` checks if API key is present |
+| `GroqChatClient.java` | HTTP client for Groq OpenAI-compatible API. Methods: `chat()`, `chatAsJson()`. Includes `extractJsonBlock()` for cleaning LLM responses |
 | `OpenFdaClient.java` | HTTP client for openFDA drug label API. Method: `checkInteractions()` |
 | `AiService.java` | Orchestrator. Each method: try real → catch → fallback to mock. `@Transactional(readOnly=true)` |
 | `AiController.java` | 6 REST endpoints, all `@PreAuthorize("hasAnyRole('DOCTOR','PHARMACIST','ADMIN')")` |
 
-### Frontend Hooks
+### Frontend AI Hooks
 
-Each hook calls backend API first, falls back to local mock if backend is unreachable:
+Each hook calls backend API directly via `apiFetch` (with JWT). No local fallback.
 
 | Hook | Backend Endpoint | Consumers |
 |------|-----------------|-----------|
@@ -189,11 +213,51 @@ Each hook calls backend API first, falls back to local mock if backend is unreac
 
 ### Groq Prompt Design
 
-Each AI method uses structured prompts that instruct the LLM to return JSON only (no markdown). The `extractJson()` utility strips any markdown code fences the LLM might add.
+Each AI method uses structured prompts that instruct the LLM to return JSON only (no markdown). The `extractJsonBlock()` utility strips markdown code fences and finds the first `{` or `[` (whichever appears first) to locate the JSON payload.
 
 ---
 
-## 6. Frontend Route Map
+## 6. Frontend–Backend Integration
+
+### Auth Flow
+
+```
+LoginPage (username + password)
+  → apiFetch('/api/auth/login', { skipAuth: true })
+  → Backend returns { accessToken, tokenType, userId, username, fullName, role }
+  → Store accessToken in localStorage('healthineer_token')
+  → Store user info in localStorage('healthineer_auth')
+  → All subsequent apiFetch calls include Authorization: Bearer <token>
+```
+
+- `apiFetch` supports `skipAuth: true` option to prevent stale JWTs from being sent during login
+- On logout, both `healthineer_token` and `healthineer_auth` are cleared
+
+### CRUD API Client (src/api/client.ts)
+
+The client layer sits between UI components and the backend:
+
+```
+UI Component → client.ts API function → apiFetch → Backend REST endpoint
+                     │                                      │
+                     └── catch → mock fallback ─────────────┘
+```
+
+**Adapter pattern:** 15+ mapper functions convert backend DTOs (Java records with `Long` IDs) to frontend TypeScript types (with `string` IDs). Key mappings:
+
+| Backend DTO | Frontend Type | ID Mapping |
+|-------------|---------------|-----------|
+| `PatientResponse { id: Long }` | `Patient { id: string }` | `String(backend.id)` |
+| `PrescriptionResponse { id: Long }` | `Prescription { id: string }` | `String(backend.id)` |
+| `MedicationResponse { id: Long }` | `Medication { id: string }` | `String(backend.id)` |
+| `InventoryBatchResponse` | `MedicationBatch` | `String(backend.id)` |
+| `MessageResponse` | `Message` | `String(backend.id)` |
+
+Backend paginated responses (`Page<T>`) are unwrapped from `{ content: T[], totalElements, ... }`.
+
+---
+
+## 7. Frontend Route Map
 
 | Path | Component | Role Access |
 |------|-----------|-------------|
@@ -216,7 +280,7 @@ Each AI method uses structured prompts that instruct the LLM to return JSON only
 
 ---
 
-## 7. Configuration
+## 8. Configuration
 
 ### Backend (application.yml)
 
@@ -224,7 +288,6 @@ Each AI method uses structured prompts that instruct the LLM to return JSON only
 server.port: 8080                          # 8081 in local profile
 spring.datasource.url: jdbc:postgresql://localhost:5432/hospital  # H2 in local
 spring.jpa.hibernate.ddl-auto: update      # create-drop in local
-spring.flyway.enabled: true                # false in local
 app.jwt.secret: 0123456789abcdef...        # HMAC-SHA256, 32 chars
 app.jwt.expiration-minutes: 180
 app.rate-limit.requests-per-minute: 120
@@ -243,25 +306,33 @@ VITE_API_BASE_URL=http://localhost:8081
 
 ### Spring Profiles
 
-| Profile | Database | AI | Use case |
-|---------|----------|----|----------|
-| (default) | PostgreSQL | mock (no key) | Production |
-| local | H2 in-memory | Groq real (key in application-local.yml) | Dev/demo |
+| Profile | Database | AI | Port | Use case |
+|---------|----------|----|------|----------|
+| (default) | PostgreSQL | mock (no key) | 8080 | Production |
+| local | H2 in-memory | Groq real (key in application-local.yml) | 8081 | Dev/demo |
+
+### Key localStorage Keys
+
+| Key | Written by | Read by | Content |
+|-----|-----------|---------|---------|
+| `healthineer_token` | AuthContext (login) | apiFetch (every request) | JWT access token string |
+| `healthineer_auth` | AuthContext (login) | AuthContext (page reload) | `{ user: { id, name, role, email } }` |
 
 ---
 
-## 8. Security
+## 9. Security
 
-- **JWT**: HMAC-SHA256, issued by `/api/auth/login`, 3h expiry
-- **Role claims**: `role` field in JWT payload → Spring `ROLE_DOCTOR`, `ROLE_PHARMACIST`, `ROLE_ADMIN`
+- **Authentication**: JWT (HMAC-SHA256), issued by `POST /api/auth/login`, 3h expiry
+- **Authorization**: Role claims in JWT → Spring `ROLE_DOCTOR`, `ROLE_PHARMACIST`, `ROLE_ADMIN`
+- **Password storage**: bcrypt via `BCryptPasswordEncoder`
 - **CORS**: allows `localhost:5173` and `127.0.0.1:5173`
 - **Rate limiting**: 120 req/min per IP via `RateLimitFilter`
-- **Swagger**: public at `/swagger-ui.html`
-- **Actuator health**: public at `/actuator/health`
+- **Public endpoints**: `/api/auth/login`, `/swagger-ui/**`, `/v3/api-docs/**`, `/actuator/health`, `/api/inventory/health`
+- **Login safety**: `apiFetch` clears stale token and uses `skipAuth: true` for login requests to prevent Spring Security from rejecting requests with expired JWTs
 
 ---
 
-## 9. Data Seeding (DataSeeder.java)
+## 10. Data Seeding (DataSeeder.java)
 
 On startup (if tables empty):
 - 5 users: doctor1, doctor2, pharm1, pharm2, admin (all password: `password`)
@@ -271,36 +342,42 @@ On startup (if tables empty):
 
 ---
 
-## 10. File Structure Quick Reference
+## 11. File Structure Quick Reference
 
 ```
 ProjectHealthineer/
 ├── .env                          # Frontend env (VITE_API_BASE_URL)
-├── .gitignore
+├── .gitignore                    # Includes .env, application-local.yml, target/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
 ├── index.html
-├── README.md
+├── README.md                     # Project showcase with all features
 ├── docs/
 │   ├── SYSTEM_CONTEXT.md         # THIS FILE
 │   ├── setup-local.md
 │   └── postgres-schema.md
 ├── src/                          # Frontend (React)
-│   ├── ai/                       # 6 AI hooks + types
-│   ├── api/                      # apiFetch, client (mock), mockData
-│   ├── auth/                     # AuthContext, LoginPage
+│   ├── ai/                       # 6 AI hooks (call backend directly) + types
+│   ├── api/
+│   │   ├── apiFetch.ts           # Shared HTTP client with JWT auth + skipAuth
+│   │   ├── client.ts             # Backend API calls + adapter layer + mock fallback
+│   │   ├── mockData.ts           # Fallback mock data
+│   │   └── index.ts              # Barrel exports
+│   ├── auth/
+│   │   ├── AuthContext.tsx        # JWT login via backend, token management
+│   │   └── LoginPage.tsx         # Username/password form + quick login buttons
 │   ├── layout/                   # AppLayout (sidebar, topbar)
 │   ├── modules/                  # Feature modules (patients, prescriptions, etc.)
 │   ├── pages/                    # HomePage
 │   ├── routes/                   # React Router config
-│   └── types/                    # TypeScript interfaces
+│   └── types/                    # TypeScript interfaces (string IDs, relaxed types)
 ├── backend/                      # Backend (Spring Boot)
 │   ├── pom.xml
 │   ├── mvnw.cmd
 │   └── src/main/java/com/hospital/pharmacy/
 │       ├── presentation/         # REST controllers + exception handlers
-│       ├── application/          # DTOs + mappers
+│       ├── application/          # DTOs + ResponseMapper
 │       ├── domain/
 │       │   ├── model/            # JPA entities
 │       │   ├── repository/       # Spring Data JPA interfaces
@@ -309,14 +386,12 @@ ProjectHealthineer/
 │           ├── ai/               # GroqChatClient, OpenFdaClient, AiConfigProperties
 │           ├── security/         # SecurityConfig, JwtService, RateLimitFilter
 │           └── config/           # DataSeeder
-├── docker-compose.yml            # Optional (deploy only)
-├── docker-compose.dev.yml        # Optional (deploy only)
-└── backend/Dockerfile            # Optional (deploy only)
+└── .cursor/rules/                # Cursor IDE rules for AI agents
 ```
 
 ---
 
-## 11. Changelog
+## 12. Changelog
 
 | Date | Change | Files Affected |
 |------|--------|----------------|
@@ -326,7 +401,7 @@ ProjectHealthineer/
 | 2026-03-20 | Maven Wrapper added, Docker refactored to optional | backend/mvnw.cmd, Dockerfiles |
 | 2026-03-20 | Documentation: README, setup-local.md, postgres-schema.md | docs/, README.md |
 | 2026-03-20 | Git init + pushed to github.com/huyplm/Healthineer | .gitignore |
-| 2026-03-21 | **AI Integration**: Groq Cloud + openFDA replacing mock AI | See section 5 |
+| 2026-03-21 | **Phase 1 – AI Integration**: Groq Cloud + openFDA replacing mock AI | See section 5 |
 | 2026-03-21 | New: AiConfigProperties, GroqChatClient, OpenFdaClient | infrastructure/ai/ |
 | 2026-03-21 | AiMockService → AiService (real + fallback) | domain/service/AiService.java |
 | 2026-03-21 | 2 new endpoints: POST /api/ai/chat, GET /api/ai/inventory/forecast | presentation/AiController.java |
@@ -336,14 +411,33 @@ ProjectHealthineer/
 | 2026-03-21 | @Transactional added to AiService (fix lazy loading) | domain/service/AiService.java |
 | 2026-03-21 | H2 scope changed test→runtime in pom.xml | backend/pom.xml |
 | 2026-03-21 | Created SYSTEM_CONTEXT.md + .cursor/rules | docs/, .cursor/rules/ |
+| 2026-03-21 | **Phase 2 – Full Frontend↔Backend Integration** | See below |
+| 2026-03-21 | Auth: LoginPage → real backend login, JWT stored in localStorage | src/auth/ |
+| 2026-03-21 | apiFetch: Added `skipAuth` option to prevent stale JWT on login | src/api/apiFetch.ts |
+| 2026-03-21 | client.ts: Replaced all mock CRUD with real backend API calls | src/api/client.ts |
+| 2026-03-21 | client.ts: 15+ adapter functions mapping backend DTOs → frontend types | src/api/client.ts |
+| 2026-03-21 | AI hooks: Removed local mock fallbacks, backend handles all fallback | src/ai/*.ts |
+| 2026-03-21 | Types: Relaxed for backend compat (optional fields, string unions) | src/types/index.ts |
+| 2026-03-21 | Fix: `extractJsonBlock` picking `[` inside object before root `{` | GroqChatClient.java, AiService.java |
+| 2026-03-21 | README: Complete rewrite with features, metrics, architecture | README.md |
 
 ---
 
-## 12. Known Issues & Gotchas
+## 13. Known Issues & Gotchas
 
-1. **Frontend auth is mock-only**: Login stores user in localStorage, no real JWT flow. Backend JWT works via Swagger/curl. Frontend AI hooks pass token from `healthineer_token` localStorage key (not yet wired to login flow).
-2. **Frontend ↔ Backend ID mismatch**: Frontend mock data uses string IDs (p1, m2). Backend uses Long numeric IDs. AI hooks convert with `Number(id)`, which returns 0 for non-numeric strings.
-3. **Port conflict**: Default port 8080 may conflict with Apache httpd. Local profile uses 8081.
+### Resolved (Phase 2)
+
+1. ~~**Frontend auth is mock-only**~~ → Now uses real JWT login via backend. Token stored in `healthineer_token`.
+2. ~~**Frontend ↔ Backend ID mismatch**~~ → Adapter layer in `client.ts` converts `Long` → `string` IDs. All CRUD uses real backend data.
+
+### Active
+
+3. **Port conflict**: Default port 8080 may conflict with other services. Local profile uses 8081.
 4. **Flyway**: Enabled by default, disabled in local profile. No migration files exist yet (relies on `ddl-auto: update`).
 5. **Groq rate limit**: Free tier = 1,000 req/day for 70B model. Falls back to mock on rate limit errors.
 6. **openFDA**: No API key needed, 40 req/min limit. Drug name matching is substring-based, may produce false positives.
+7. **Chat/Messaging**: `chatApi.getConversations` and `chatApi.getOrCreateByPrescription` still use mock data (backend message API is per-prescription only, no conversation concept).
+8. **Users API**: `usersApi.getAll()` still returns mock users. Backend has no user listing endpoint (only login).
+9. **Inventory locations**: `inventoryApi.getLocations()` still returns mock locations. Backend inventory uses location strings, not a locations table.
+10. **Medication update**: `medicationsApi.update()` still uses mock (backend has no PUT /api/medications/{id} endpoint).
+11. **JWT expiry**: No automatic token refresh. After 3 hours, user must re-login. Failed API calls don't redirect to login page.
