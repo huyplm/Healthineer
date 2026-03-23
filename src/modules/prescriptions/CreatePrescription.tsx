@@ -158,8 +158,8 @@ export function CreatePrescription() {
   }, [items]);
 
   const mutation = useMutation({
-    mutationFn: ({ data, status }: { data: FormData; status: 'draft' | 'submitted' }) =>
-      prescriptionsApi.create({
+    mutationFn: async ({ data, status }: { data: FormData; status: 'draft' | 'submitted' }) => {
+      const rx = await prescriptionsApi.create({
         patientId: data.patientId,
         doctorId: user!.id,
         department: data.department,
@@ -169,8 +169,13 @@ export function CreatePrescription() {
           ...it,
           id: `ri${Date.now()}_${i}`,
         })) as PrescriptionItem[],
-        status,
-      }),
+        status: 'draft',
+      });
+      if (status === 'submitted') {
+        return prescriptionsApi.update(rx.id, { status: 'submitted' });
+      }
+      return rx;
+    },
     onSuccess: (rx) => {
       queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
       navigate(`/prescriptions/${rx.id}`);

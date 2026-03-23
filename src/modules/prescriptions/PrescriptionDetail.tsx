@@ -14,6 +14,7 @@ import {
   TableRow,
   Chip,
   Alert,
+  Button,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { prescriptionsApi } from '@/api';
@@ -37,18 +38,32 @@ export function PrescriptionDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { data: prescription, isLoading } = useQuery({
+  const { data: prescription, isLoading, error } = useQuery({
     queryKey: ['prescription', id],
     queryFn: () => prescriptionsApi.getById(id!),
     enabled: !!id,
+    retry: 1,
   });
 
   const { data: adrRisk, isLoading: adrLoading } = useAiAdrRisk(
     prescription?.patientId ? { patientId: prescription.patientId, context: { currentMedicationCount: prescription.items?.length ?? 0 } } : null
   );
 
-  if (isLoading || !prescription) {
+  if (isLoading) {
     return <Typography>Loading...</Typography>;
+  }
+
+  if (error || !prescription) {
+    return (
+      <Box>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error ? `Failed to load prescription: ${error.message}` : 'Prescription not found.'}
+        </Alert>
+        <Button variant="outlined" onClick={() => navigate('/prescriptions')}>
+          Back to Prescriptions
+        </Button>
+      </Box>
+    );
   }
 
   const currentStepIndex = statusSteps.indexOf(prescription.status);

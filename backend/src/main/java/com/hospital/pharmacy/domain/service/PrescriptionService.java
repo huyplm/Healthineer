@@ -41,12 +41,26 @@ public class PrescriptionService {
         this.inventoryService = inventoryService;
     }
 
+    @Transactional(readOnly = true)
     public Page<Prescription> myPrescriptions(Long doctorId, Pageable pageable) {
-        return prescriptionRepository.findByDoctor_Id(doctorId, pageable);
+        Page<Prescription> page = prescriptionRepository.findByDoctor_Id(doctorId, pageable);
+        page.getContent().forEach(this::initializeLazyRelations);
+        return page;
     }
 
+    @Transactional(readOnly = true)
     public Prescription get(Long id) {
-        return prescriptionRepository.findById(id).orElseThrow(() -> new NotFoundException("Prescription not found"));
+        Prescription p = prescriptionRepository.findById(id).orElseThrow(() -> new NotFoundException("Prescription not found"));
+        initializeLazyRelations(p);
+        return p;
+    }
+
+    private void initializeLazyRelations(Prescription p) {
+        if (p.getPatient() != null) p.getPatient().getFullName();
+        if (p.getDoctor() != null) p.getDoctor().getFullName();
+        for (PrescriptionItem item : p.getItems()) {
+            if (item.getMedication() != null) item.getMedication().getTradeName();
+        }
     }
 
     @Transactional
@@ -91,8 +105,11 @@ public class PrescriptionService {
         return prescriptionRepository.save(p);
     }
 
+    @Transactional(readOnly = true)
     public Page<Prescription> queue(Pageable pageable) {
-        return prescriptionRepository.findByStatusIn(List.of(PrescriptionStatus.SUBMITTED, PrescriptionStatus.REVIEWED), pageable);
+        Page<Prescription> page = prescriptionRepository.findByStatusIn(List.of(PrescriptionStatus.SUBMITTED, PrescriptionStatus.REVIEWED), pageable);
+        page.getContent().forEach(this::initializeLazyRelations);
+        return page;
     }
 
     @Transactional
