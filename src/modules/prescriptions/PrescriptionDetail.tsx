@@ -86,10 +86,10 @@ export function PrescriptionDetail() {
         <Paper sx={{ p: 2, mb: 2 }}>
           <Typography variant="subtitle2" gutterBottom>Details</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography>Patient: {prescription.patient?.fullName} ({prescription.patient?.code})</Typography>
+            <Typography>Patient: {prescription.patientName || prescription.patient?.fullName} ({prescription.patient?.code || prescription.patientId})</Typography>
             <AdrRiskBadge data={adrRisk} isLoading={adrLoading} />
           </Box>
-          <Typography>Doctor: {prescription.doctor?.name}</Typography>
+          <Typography>Doctor: {prescription.doctorName || prescription.doctor?.name}</Typography>
           <Typography>Department: {prescription.department}</Typography>
           <Typography>Diagnosis: {prescription.diagnosis}</Typography>
           {prescription.clinicalNotes && <Typography>Notes: {prescription.clinicalNotes}</Typography>}
@@ -111,7 +111,7 @@ export function PrescriptionDetail() {
               <TableBody>
                 {prescription.items.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell>{item.medication?.tradeName} {item.medication?.strength}</TableCell>
+                    <TableCell>{item.medicationName || item.medication?.tradeName || '—'}</TableCell>
                     <TableCell>{item.dose} {item.unit}</TableCell>
                     <TableCell>{item.frequency}/day</TableCell>
                     <TableCell>{item.duration} days</TableCell>

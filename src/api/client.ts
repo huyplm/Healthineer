@@ -174,12 +174,13 @@ function toMedication(b: BackendMedication): Medication {
 }
 
 function toPrescriptionItem(b: BackendPrescriptionItem): PrescriptionItem {
+  const doseMatch = b.dose?.match(/^([\d.]+)\s*(.*)$/);
   return {
     id: String(b.id),
     medicationId: String(b.medicationId),
     medicationName: b.medicationName,
-    dose: b.dose,
-    unit: b.dose,
+    dose: doseMatch ? doseMatch[1] : b.dose,
+    unit: doseMatch && doseMatch[2] ? doseMatch[2] : 'mg',
     frequency: b.frequency,
     duration: b.durationDays,
     route: b.route,
