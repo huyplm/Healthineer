@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { useAuth } from '@/auth/AuthContext';
 import { AppLayout } from '@/layout/AppLayout';
 import { LoginPage } from '@/auth/LoginPage';
 import { HomePage } from '@/pages/HomePage';
@@ -20,9 +21,8 @@ import { ChatInbox } from '@/modules/chat/ChatInbox';
 import { UserManagement } from '@/modules/admin/UserManagement';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const stored = localStorage.getItem('healthineer_auth');
-  const isAuth = stored ? !!JSON.parse(stored).user : false;
-  if (!isAuth) return <Navigate to="/login" replace />;
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 

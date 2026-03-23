@@ -93,7 +93,7 @@ export function AppLayout() {
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user?.name} ({user?.role})
           </Typography>
-          <IconButton color="inherit" onClick={logout}>
+          <IconButton color="inherit" onClick={() => { logout(); navigate('/login', { replace: true }); }}>
             <LogoutIcon />
           </IconButton>
         </Toolbar>
