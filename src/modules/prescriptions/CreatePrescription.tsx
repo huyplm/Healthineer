@@ -185,34 +185,60 @@ export function CreatePrescription() {
     setValue('items', items.filter((_, i) => i !== idx));
   };
 
+  const normalizeFrequency = (freq: string): string => {
+    const f = freq.toLowerCase().trim();
+    if (frequencyOptions.includes(f)) return f;
+    if (/1.?1.?1/.test(f) || /3\s*times|3x|three/i.test(f) || /every\s*8/i.test(f)) return '3x';
+    if (/1.?0.?1/.test(f) || /2\s*times|2x|twice|every\s*12/i.test(f)) return '2x';
+    if (/4\s*times|4x|every\s*6|every\s*4/i.test(f) || /q[46]h/i.test(f)) return '4x';
+    if (/1.?0.?0/.test(f) || /once|1\s*time|1x|daily/i.test(f)) return '1x';
+    if (/prn|as\s*needed|khi\s*cần/i.test(f)) return 'prn';
+    return '2x';
+  };
+
+  const normalizeRoute = (route: string): string => {
+    const r = route.toLowerCase().trim();
+    if (routeOptions.includes(r)) return r;
+    if (/oral|uống|mouth|po\b/i.test(r)) return 'oral';
+    if (/inject|tiêm|im\b|sc\b/i.test(r)) return 'injection';
+    if (/iv\b|truyền|infus/i.test(r)) return 'iv';
+    if (/topical|bôi|cream|oint/i.test(r)) return 'topical';
+    if (/sublingual|ngậm/i.test(r)) return 'sublingual';
+    if (/rectal|hậu môn/i.test(r)) return 'rectal';
+    return 'oral';
+  };
+
+  const resolveMedicationId = (s: AiSuggestedMedication): string => {
+    if (s.medicationId) {
+      const idStr = String(s.medicationId);
+      if (medications.some((m) => m.id === idStr)) return idStr;
+    }
+    const nameLC = s.name.toLowerCase();
+    const match =
+      medications.find((m) => m.tradeName.toLowerCase() === nameLC) ||
+      medications.find((m) => nameLC.includes(m.tradeName.toLowerCase())) ||
+      medications.find((m) => m.tradeName.toLowerCase().includes(nameLC.split(' ')[0])) ||
+      medications.find((m) => m.activeIngredient?.toLowerCase().includes(nameLC.split(' ')[0]));
+    return match?.id ?? '';
+  };
+
+  const mapSuggestionToItem = (s: AiSuggestedMedication) => ({
+    medicationId: resolveMedicationId(s),
+    dose: s.dose.replace(/\s*mg$/i, '') || s.dose,
+    unit: s.dose.includes('mg') ? 'mg' : 'viên',
+    frequency: normalizeFrequency(s.frequency),
+    duration: s.durationDays,
+    route: normalizeRoute(s.route),
+    instructions: undefined,
+  });
+
   const addAiSuggestion = (s: AiSuggestedMedication) => {
-    const unit = s.dose.includes('mg') ? 'mg' : 'viên';
-    setValue('items', [
-      ...items,
-      {
-        medicationId: s.medicationId,
-        dose: s.dose.replace(/\s*mg$/i, ''),
-        unit,
-        frequency: s.frequency,
-        duration: s.durationDays,
-        route: s.route as 'oral',
-        instructions: undefined,
-      },
-    ]);
+    setValue('items', [...items, mapSuggestionToItem(s)]);
   };
 
   const addAllAiSuggestions = () => {
     if (!aiSuggest.data?.length) return;
-    const newItems = aiSuggest.data.map((s) => ({
-      medicationId: s.medicationId,
-      dose: s.dose.replace(/\s*mg$/i, '') || s.dose,
-      unit: 'mg',
-      frequency: s.frequency,
-      duration: s.durationDays,
-      route: s.route as 'oral',
-      instructions: undefined,
-    }));
-    setValue('items', [...items, ...newItems]);
+    setValue('items', [...items, ...aiSuggest.data.map(mapSuggestionToItem)]);
   };
 
   const handleAiSuggestClick = () => {

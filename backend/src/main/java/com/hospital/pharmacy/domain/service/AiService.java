@@ -79,25 +79,58 @@ public class AiService {
         String conditions = patient.getConditions().stream()
                 .map(Condition::getConditionName).collect(Collectors.joining(", "));
 
+        List<Medication> allMeds = medicationRepository.findAll();
+        String catalogCsv = allMeds.stream()
+                .filter(Medication::isActive)
+                .map(m -> m.getId() + "|" + m.getTradeName() + "|" + m.getActiveIngredient() + "|" + m.getStrength())
+                .collect(Collectors.joining("\n"));
+
         String systemPrompt = """
-                You are a clinical pharmacist AI. Given patient info and diagnosis, suggest medications.
+                You are a clinical pharmacist AI. Given patient info, diagnosis, and an available medication catalog, suggest medications.
+                IMPORTANT: You MUST ONLY suggest medications from the provided catalog. Use the exact medicationId from the catalog.
                 Return ONLY a JSON array (no markdown, no explanation) with objects containing:
-                {"medicationId": null, "name": string, "dose": string, "frequency": string, "durationDays": int, "route": string, "reasoning": string, "confidence": double(0-1)}
-                Suggest 2-4 medications. Be clinically appropriate.""";
+                {"medicationId": long, "name": string, "dose": string, "frequency": string, "durationDays": int, "route": string, "reasoning": string, "confidence": double(0-1)}
+                Where medicationId is the numeric ID from the catalog. Suggest 2-4 medications. Be clinically appropriate.""";
 
         String userMsg = String.format(
-                "Patient: age %d, gender %s, allergies: [%s], conditions: [%s]. Diagnosis: %s",
-                age, patient.getGender(), allergies, conditions, request.diagnosis());
+                "Patient: age %d, gender %s, allergies: [%s], conditions: [%s]. Diagnosis: %s\n\nAvailable Medication Catalog (id|tradeName|activeIngredient|strength):\n%s",
+                age, patient.getGender(), allergies, conditions, request.diagnosis(), catalogCsv);
 
         String response = groqClient.chat(systemPrompt, userMsg, 0.3);
         try {
-            return objectMapper.readValue(
+            List<AiSuggestedMedicationResponse> suggestions = objectMapper.readValue(
                     extractJson(response),
                     new TypeReference<List<AiSuggestedMedicationResponse>>() {});
+            return resolveAndValidateIds(suggestions, allMeds);
         } catch (Exception e) {
             log.warn("Failed to parse suggest response: {}", response);
             throw new GroqChatClient.GroqApiException("Parse failed", e);
         }
+    }
+
+    private List<AiSuggestedMedicationResponse> resolveAndValidateIds(
+            List<AiSuggestedMedicationResponse> suggestions, List<Medication> allMeds) {
+        return suggestions.stream().map(s -> {
+            if (s.medicationId() != null && allMeds.stream().anyMatch(m -> m.getId().equals(s.medicationId()))) {
+                return s;
+            }
+            String nameLC = s.name() == null ? "" : s.name().toLowerCase();
+            Medication match = allMeds.stream()
+                    .filter(m -> m.getTradeName().equalsIgnoreCase(nameLC)
+                            || m.getActiveIngredient().equalsIgnoreCase(nameLC))
+                    .findFirst()
+                    .orElseGet(() -> allMeds.stream()
+                            .filter(m -> m.getTradeName().toLowerCase().contains(nameLC.split("\\s")[0])
+                                    || m.getActiveIngredient().toLowerCase().contains(nameLC.split("\\s")[0]))
+                            .findFirst()
+                            .orElse(null));
+            if (match != null) {
+                return new AiSuggestedMedicationResponse(
+                        match.getId(), match.getTradeName() + " " + match.getStrength(),
+                        s.dose(), s.frequency(), s.durationDays(), s.route(), s.reasoning(), s.confidence());
+            }
+            return s;
+        }).collect(Collectors.toList());
     }
 
     private List<AiSuggestedMedicationResponse> suggestMock() {
