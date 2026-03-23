@@ -231,7 +231,7 @@ LoginPage (username + password)
 ```
 
 - `apiFetch` supports `skipAuth: true` option to prevent stale JWTs from being sent during login
-- On logout, both `healthineer_token` and `healthineer_auth` are cleared
+- On logout, both `healthineer_token` and `healthineer_auth` are cleared, and user is navigated to `/login`
 
 ### CRUD API Client (src/api/client.ts)
 
@@ -317,6 +317,10 @@ VITE_API_BASE_URL=http://localhost:8081
 |-----|-----------|---------|---------|
 | `healthineer_token` | AuthContext (login) | apiFetch (every request) | JWT access token string |
 | `healthineer_auth` | AuthContext (login) | AuthContext (page reload) | `{ user: { id, name, role, email } }` |
+
+### Route Protection
+
+`ProtectedRoute` component in `src/routes/index.tsx` uses `useAuth()` hook (subscribes to AuthContext state). When `isAuthenticated` becomes `false` (logout), the guard reactively redirects to `/login`. Logout in `AppLayout` also explicitly navigates to `/login`.
 
 ---
 
@@ -420,6 +424,8 @@ ProjectHealthineer/
 | 2026-03-21 | Types: Relaxed for backend compat (optional fields, string unions) | src/types/index.ts |
 | 2026-03-21 | Fix: `extractJsonBlock` picking `[` inside object before root `{` | GroqChatClient.java, AiService.java |
 | 2026-03-21 | README: Complete rewrite with features, metrics, architecture | README.md |
+| 2026-03-23 | Fix: ProtectedRoute now uses `useAuth()` instead of reading localStorage directly | src/routes/index.tsx |
+| 2026-03-23 | Fix: Logout button navigates to `/login` after clearing auth state | src/layout/AppLayout.tsx |
 
 ---
 
@@ -429,6 +435,7 @@ ProjectHealthineer/
 
 1. ~~**Frontend auth is mock-only**~~ → Now uses real JWT login via backend. Token stored in `healthineer_token`.
 2. ~~**Frontend ↔ Backend ID mismatch**~~ → Adapter layer in `client.ts` converts `Long` → `string` IDs. All CRUD uses real backend data.
+3. ~~**Logout screen freeze**~~ → `ProtectedRoute` now uses `useAuth()` (reactive) instead of reading localStorage directly. Logout also navigates to `/login`.
 
 ### Active
 
