@@ -64,12 +64,12 @@ type FormData = z.infer<typeof schema>;
 const frequencyOptions = ['1x', '2x', '3x', '4x', 'prn'];
 const routeOptions = ['oral', 'injection', 'iv', 'topical', 'sublingual', 'rectal'];
 const routeLabels: Record<string, string> = {
-  oral: 'Uống',
-  injection: 'Tiêm',
-  iv: 'Truyền',
-  topical: 'Bôi',
-  sublingual: 'Ngậm dưới lưỡi',
-  rectal: 'Đặt hậu môn',
+  oral: 'Oral',
+  injection: 'Injection',
+  iv: 'IV',
+  topical: 'Topical',
+  sublingual: 'Sublingual',
+  rectal: 'Rectal',
 };
 
 export function CreatePrescription() {
@@ -197,19 +197,19 @@ export function CreatePrescription() {
     if (/1.?0.?1/.test(f) || /2\s*times|2x|twice|every\s*12/i.test(f)) return '2x';
     if (/4\s*times|4x|every\s*6|every\s*4/i.test(f) || /q[46]h/i.test(f)) return '4x';
     if (/1.?0.?0/.test(f) || /once|1\s*time|1x|daily/i.test(f)) return '1x';
-    if (/prn|as\s*needed|khi\s*cần/i.test(f)) return 'prn';
+    if (/prn|as\s*needed/i.test(f)) return 'prn';
     return '2x';
   };
 
   const normalizeRoute = (route: string): string => {
     const r = route.toLowerCase().trim();
     if (routeOptions.includes(r)) return r;
-    if (/oral|uống|mouth|po\b/i.test(r)) return 'oral';
-    if (/inject|tiêm|im\b|sc\b/i.test(r)) return 'injection';
-    if (/iv\b|truyền|infus/i.test(r)) return 'iv';
-    if (/topical|bôi|cream|oint/i.test(r)) return 'topical';
-    if (/sublingual|ngậm/i.test(r)) return 'sublingual';
-    if (/rectal|hậu môn/i.test(r)) return 'rectal';
+    if (/oral|mouth|po\b/i.test(r)) return 'oral';
+    if (/inject|im\b|sc\b/i.test(r)) return 'injection';
+    if (/iv\b|infus/i.test(r)) return 'iv';
+    if (/topical|cream|oint/i.test(r)) return 'topical';
+    if (/sublingual/i.test(r)) return 'sublingual';
+    if (/rectal/i.test(r)) return 'rectal';
     return 'oral';
   };
 
@@ -230,7 +230,7 @@ export function CreatePrescription() {
   const mapSuggestionToItem = (s: AiSuggestedMedication) => ({
     medicationId: resolveMedicationId(s),
     dose: s.dose.replace(/\s*mg$/i, '') || s.dose,
-    unit: s.dose.includes('mg') ? 'mg' : 'viên',
+    unit: s.dose.includes('mg') ? 'mg' : 'tablet',
     frequency: normalizeFrequency(s.frequency),
     duration: s.durationDays,
     route: normalizeRoute(s.route),
@@ -405,7 +405,7 @@ export function CreatePrescription() {
             </Table>
           </TableContainer>
           <Button startIcon={<AddIcon />} onClick={addItem} sx={{ mt: 1 }}>
-            Thêm thuốc
+            Add medication
           </Button>
         </Paper>
 
@@ -462,7 +462,7 @@ export function CreatePrescription() {
             onClick={handleAiSuggestClick}
             disabled={aiSuggest.isLoading || !patientId || !diagnosis?.trim()}
           >
-            AI gợi ý đơn thuốc
+            AI suggest prescription
           </Button>
           <Button type="button" variant="contained" onClick={() => submitWithValidation('draft')}>
             Save as draft
@@ -507,13 +507,13 @@ export function CreatePrescription() {
                     }
                   >
                     <ListItemText
-                      primary={`${s.name} - ${s.dose} - ${s.frequency}/ngày - ${s.durationDays} ngày`}
+                      primary={`${s.name} - ${s.dose} - ${s.frequency}/day - ${s.durationDays} days`}
                       secondary={
                         <Box>
                           <Tooltip title={s.reasoning}>
                             <Chip
                               size="small"
-                              label={s.confidence >= 0.8 ? 'Cao' : s.confidence >= 0.5 ? 'TB' : 'Thấp'}
+                              label={s.confidence >= 0.8 ? 'High' : s.confidence >= 0.5 ? 'Medium' : 'Low'}
                               color={s.confidence >= 0.8 ? 'success' : s.confidence >= 0.5 ? 'warning' : 'default'}
                               sx={{ mr: 0.5 }}
                             />

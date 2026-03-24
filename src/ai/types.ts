@@ -1,4 +1,4 @@
-// AI 1 - Gợi ý kê đơn
+// AI 1 - Prescription suggestions
 export interface AiSuggestedMedication {
   medicationId: string;
   name: string;
@@ -10,7 +10,7 @@ export interface AiSuggestedMedication {
   confidence: number; // 0-1
 }
 
-// AI 2 - Tương tác thuốc
+// AI 2 - Drug interactions
 export type InteractionSeverity = 'low' | 'moderate' | 'high';
 
 export interface AiDrugInteraction {

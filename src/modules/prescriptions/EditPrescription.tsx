@@ -54,12 +54,12 @@ type FormData = z.infer<typeof schema>;
 const frequencyOptions = ['1x', '2x', '3x', '4x', 'prn'];
 const routeOptions = ['oral', 'injection', 'iv', 'topical', 'sublingual', 'rectal'];
 const routeLabels: Record<string, string> = {
-  oral: 'Uống',
-  injection: 'Tiêm',
-  iv: 'Truyền',
-  topical: 'Bôi',
-  sublingual: 'Ngậm dưới lưỡi',
-  rectal: 'Đặt hậu môn',
+  oral: 'Oral',
+  injection: 'Injection',
+  iv: 'IV',
+  topical: 'Topical',
+  sublingual: 'Sublingual',
+  rectal: 'Rectal',
 };
 
 export function EditPrescription() {

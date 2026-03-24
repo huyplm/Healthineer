@@ -166,7 +166,7 @@ export const mockBatches: MedicationBatch[] = [
 export let mockPrescriptions: Prescription[] = [
   {
     id: 'rx1',
-    code: 'ĐT001',
+    code: 'RX001',
     patientId: 'p1',
     doctorId: 'u1',
     department: 'Internal Medicine',
@@ -181,7 +181,7 @@ export let mockPrescriptions: Prescription[] = [
         frequency: '3x',
         duration: 5,
         route: 'oral',
-        instructions: 'Sau ăn',
+        instructions: 'After meals',
       },
     ],
     status: 'submitted',
@@ -191,7 +191,7 @@ export let mockPrescriptions: Prescription[] = [
   },
   {
     id: 'rx2',
-    code: 'ĐT002',
+    code: 'RX002',
     patientId: 'p2',
     doctorId: 'u1',
     department: 'Surgery',

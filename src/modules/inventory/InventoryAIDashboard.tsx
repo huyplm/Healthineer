@@ -151,7 +151,7 @@ export function InventoryAIDashboard() {
                       <TableCell>
                         {row.daysUntilStockout === null
                           ? '—'
-                          : `${row.daysUntilStockout} ngày`}
+                          : `${row.daysUntilStockout} days`}
                       </TableCell>
                       <TableCell>
                         <Chip

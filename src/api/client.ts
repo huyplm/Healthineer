@@ -408,7 +408,7 @@ export const prescriptionsApi = {
     } catch {
       await delay(SIMULATE_DELAY);
       const id = `rx${Date.now()}`;
-      const code = `ĐT${String(mockPrescriptions.length + 1).padStart(3, '0')}`;
+      const code = `RX${String(mockPrescriptions.length + 1).padStart(3, '0')}`;
       const now = new Date().toISOString();
       const prescription: Prescription = { ...data, id, code, createdAt: now, updatedAt: now };
       mockPrescriptions.push(prescription);
