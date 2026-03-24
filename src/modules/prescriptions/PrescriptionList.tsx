@@ -87,7 +87,7 @@ export function PrescriptionList() {
               prescriptions.map((rx) => (
                 <TableRow key={rx.id} hover>
                   <TableCell>{rx.code}</TableCell>
-                  <TableCell>{rx.patient?.fullName}</TableCell>
+                  <TableCell>{rx.patientName || rx.patient?.fullName}</TableCell>
                   <TableCell>{new Date(rx.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <Chip

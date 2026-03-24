@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { AiDrugInteraction } from './types';
 import { apiFetch } from '@/api/apiFetch';
 
@@ -41,11 +41,14 @@ export function useAiCheckDrugInteractions(
   const [error, setError] = useState<Error | null>(null);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
   const [overrideReasons, setOverrideReasons] = useState<Record<string, string>>({});
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastKeyRef = useRef<string>('');
+
+  const medIds = params?.medicationsInPrescription?.map((m) => m.medicationId).filter(Boolean) ?? [];
+  const stableKey = params?.patientId ? `${params.patientId}:${medIds.sort().join(',')}` : '';
 
   const run = useCallback(() => {
-    if (!params?.patientId) return;
-    const medIds = params.medicationsInPrescription.map((m) => m.medicationId).filter(Boolean);
-    if (medIds.length === 0) {
+    if (!params?.patientId || medIds.length === 0) {
       setData(null);
       return;
     }
@@ -55,13 +58,18 @@ export function useAiCheckDrugInteractions(
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e : new Error(String(e))))
       .finally(() => setIsLoading(false));
-  }, [params?.patientId, params?.medicationsInPrescription]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stableKey]);
 
   useEffect(() => {
-    if (options?.autoRun !== false && params?.patientId && params?.medicationsInPrescription?.length) {
-      run();
-    }
-  }, [params?.patientId, params?.medicationsInPrescription, options?.autoRun, run]);
+    if (options?.autoRun === false || !stableKey || stableKey === lastKeyRef.current) return;
+    lastKeyRef.current = stableKey;
+
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(run, 800);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [stableKey, options?.autoRun, run]);
 
   const acknowledge = useCallback((id: string) => {
     setAcknowledged((prev) => new Set(prev).add(id));

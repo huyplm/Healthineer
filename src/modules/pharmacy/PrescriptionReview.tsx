@@ -53,7 +53,7 @@ export function PrescriptionReview() {
         </Typography>
         <Paper sx={{ p: 2, mb: 2 }}>
           <Typography variant="subtitle2" gutterBottom>Patient Info</Typography>
-          <Typography>Name: {prescription.patient?.fullName}</Typography>
+          <Typography>Name: {prescription.patientName || prescription.patient?.fullName}</Typography>
           <Typography>Allergies: {prescription.patient?.allergies?.length
             ? prescription.patient.allergies.map((a) => a.name).join(', ')
             : 'None'}</Typography>
@@ -75,7 +75,7 @@ export function PrescriptionReview() {
               <TableBody>
                 {prescription.items.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell>{item.medication?.tradeName}</TableCell>
+                    <TableCell>{item.medicationName || item.medication?.tradeName || '—'}</TableCell>
                     <TableCell>{item.dose} {item.unit} x {item.duration} days</TableCell>
                     <TableCell>In stock (mock)</TableCell>
                   </TableRow>

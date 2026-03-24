@@ -45,7 +45,7 @@ export function DispenseSummary() {
         Dispense Summary – {prescription.code}
       </Typography>
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Typography variant="subtitle2">Patient: {prescription.patient?.fullName}</Typography>
+        <Typography variant="subtitle2">Patient: {prescription.patientName || prescription.patient?.fullName}</Typography>
         <Typography variant="subtitle2">Diagnosis: {prescription.diagnosis}</Typography>
       </Paper>
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -64,7 +64,7 @@ export function DispenseSummary() {
             <TableBody>
               {prescription.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{item.medication?.tradeName} {item.medication?.strength}</TableCell>
+                  <TableCell>{item.medicationName || item.medication?.tradeName || '—'}</TableCell>
                   <TableCell>{item.dose} {item.unit}</TableCell>
                   <TableCell>{item.frequency}/day</TableCell>
                   <TableCell>{item.duration} days</TableCell>

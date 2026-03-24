@@ -56,7 +56,7 @@ export function PrescriptionQueue() {
               queue.map((rx) => (
                 <TableRow key={rx.id} hover>
                   <TableCell>{rx.code}</TableCell>
-                  <TableCell>{rx.patient?.fullName}</TableCell>
+                  <TableCell>{rx.patientName || rx.patient?.fullName}</TableCell>
                   <TableCell>{rx.doctor?.name}</TableCell>
                   <TableCell>{rx.department}</TableCell>
                   <TableCell>{new Date(rx.createdAt).toLocaleString()}</TableCell>
