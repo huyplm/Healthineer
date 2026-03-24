@@ -5,6 +5,47 @@
 
 ---
 
+## 0. Guide for AI agents
+
+Use this document as the **single source of truth** for architecture, boundaries, and known gaps. Prefer it over guessing from partial file reads.
+
+### Suggested reading order
+
+1. **Known Issues (section 14)** — Active limitations and partial mocks; avoids re-introducing fixed bugs.
+2. **System overview + Architecture (sections 1–2)** — Stack, layers, and where packages live.
+3. **Domain + API (sections 3–4)** — Entities, lifecycle, and REST contract (auth per endpoint).
+4. **AI integration (section 5)** — Groq vs openFDA vs mock; JSON extraction gotchas.
+5. **Frontend integration (section 6)** — Auth, adapters, prescription flows, lazy-loading.
+6. **Implementation deep-dive (section 12)** — Prescription UI/adapter patterns, drawer layout, debounced hooks.
+7. **File structure (section 11)** — Repo map.
+
+### Mental model
+
+| Topic | Rule |
+|--------|------|
+| **Source of truth** | PostgreSQL (prod) / H2 (local). REST API is canonical; `src/api/client.ts` maps DTOs and falls back to `mockData.ts` when the request fails. |
+| **Authentication** | JWT from `POST /api/auth/login`. Stored in `localStorage` (`healthineer_token`). `apiFetch` sends `Authorization` unless `skipAuth: true` (login). |
+| **Authorization** | Enforced on the **backend** with `@PreAuthorize`. The React router only wraps routes in `ProtectedRoute` (authenticated or not). **Role-based nav** is UX-only: `AppLayout` hides links a role should not see; a user can still type a URL—API calls will return **403** if forbidden. |
+| **IDs** | Backend uses `Long`; frontend models use `string`. Adapters in `client.ts` use `String(id)`. |
+| **UI language** | User-visible frontend strings are **English** (prescription forms, routes labels, mock prescription codes use `RX` prefix). |
+
+### Common debugging entry points
+
+| Symptom | Likely cause | Where to look |
+|---------|----------------|---------------|
+| Medication or patient name blank in tables | UI reading nested `item.medication` only; backend DTO is flat | `medicationName`, `patientName`, `doctorName` on responses; section 12.1 |
+| Prescription detail infinite “Loading…” | `useQuery` error ignored, or backend 500 | `PrescriptionDetail.tsx`; backend `LazyInitializationException` (section 6.3) |
+| AI suggestion row with empty drug autocomplete | ID mismatch or catalog gap | `AiService.suggestReal` + catalog; `CreatePrescription` resolvers (section 5 / 12) |
+| Red “drug safety” panel flickering | Effect + unstable deps causing refetch loop | `useAiCheckDrugInteractions.ts` stable key + debounce (section 12.2) |
+| Sidebar covers main content | Drawer `paper` width not synced with drawer root | `AppLayout.tsx` (section 12.3) |
+
+### Safe-change boundaries
+
+- **Architectural** change (new endpoint, entity, env var, AI provider): update **this file**, **changelog (section 13)**, and **Known Issues (section 14)** if behavior changes.
+- **Secrets**: never commit `.env`, `application-local.yml`, or Groq keys. `application.yml` uses `${GROQ_API_KEY:}` only.
+
+---
+
 ## 1. System Overview
 
 Hospital drug management and e-prescribing platform with AI-assisted clinical decision support.
@@ -127,20 +168,24 @@ DRAFT → SUBMITTED → REVIEWED → APPROVED → DISPENSED → COMPLETED
 |------|------|------|-------------|
 | GET | /api/prescriptions/my | JWT | Doctor's prescriptions (paginated) |
 | GET | /api/prescriptions/{id} | JWT | Prescription detail with items |
-| POST | /api/prescriptions | JWT | Create draft |
-| PUT | /api/prescriptions/{id}/submit | JWT | Submit for review |
-| PUT | /api/prescriptions/{id}/items | JWT | Update items |
+| POST | /api/prescriptions | JWT | Create **draft** only (ignores any client "status" field) |
+| PUT | /api/prescriptions/{id}/submit | JWT | Submit for review (doctor) |
+| PUT | /api/prescriptions/{id}/items | JWT | Replace line items (doctor, draft) |
 | GET | /api/prescriptions/queue | JWT | Pharmacy queue (paginated) |
 | PUT | /api/prescriptions/{id}/review | JWT | Pharmacist review |
 | PUT | /api/prescriptions/{id}/approve | JWT | Approve |
 | PUT | /api/prescriptions/{id}/dispense | JWT | Dispense |
+
+**Frontend `prescriptionsApi.update`:** maps `status` values to the PUT paths above (`submitted` → `/submit`, `reviewed` → `/review`, etc.) and uses `/items` when the payload includes `items`.
 
 ### Medications
 | Verb | Path | Auth | Description |
 |------|------|------|-------------|
 | GET | /api/medications | JWT | Search/list medications (`?q=` + paginated) |
 | GET | /api/medications/{id} | JWT | Medication detail |
-| POST | /api/medications | JWT | Create medication |
+| POST | /api/medications | JWT | Create medication (pharmacist/admin) |
+
+There is **no** update/delete endpoint; frontend `medicationsApi.update` touches mock data only.
 
 ### Inventory
 | Verb | Path | Auth | Description |
@@ -213,7 +258,11 @@ Each hook calls backend API directly via `apiFetch` (with JWT). No local fallbac
 
 ### Groq Prompt Design
 
-Each AI method uses structured prompts that instruct the LLM to return JSON only (no markdown). The `extractJsonBlock()` utility strips markdown code fences and finds the first `{` or `[` (whichever appears first) to locate the JSON payload.
+Each AI method uses structured prompts that instruct the LLM to return JSON only (no markdown). The `extractJsonBlock()` / `extractJson()` utilities strip markdown code fences and choose the **earlier** of `[` or `{` as the JSON start (fix: do not always prefer `[` or nested arrays break object parsing).
+
+### Prescription suggestions (catalog enforcement)
+
+`AiService.suggestReal` loads the active medication list, embeds **id|tradeName|activeIngredient|strength** in the prompt, and instructs the model to return **only** catalog `medicationId` values. `resolveAndValidateIds` post-processes the JSON list to fix or match IDs by name when the model drifts. This keeps autocomplete and persistence aligned with `Medication` rows (seed list in `DataSeeder`).
 
 ---
 
@@ -259,24 +308,29 @@ Backend paginated responses (`Page<T>`) are unwrapped from `{ content: T[], tota
 
 ## 7. Frontend Route Map
 
-| Path | Component | Role Access |
-|------|-----------|-------------|
+All routes below `/` require authentication (`ProtectedRoute`). **Role column = primary nav audience**; backend still enforces roles on API calls.
+
+| Path | Component | Primary role(s) |
+|------|-----------|-----------------|
 | /login | LoginPage | public |
-| / | HomePage | all |
-| /patients | PatientList | DOCTOR |
-| /patients/new | PatientForm | DOCTOR |
-| /patients/:id | PatientDetail | DOCTOR |
-| /prescriptions | PrescriptionList | DOCTOR |
-| /prescriptions/new | CreatePrescription | DOCTOR |
-| /prescriptions/:id | PrescriptionDetail | DOCTOR, PHARMACIST |
-| /medications | MedicationCatalog | PHARMACIST, ADMIN |
-| /inventory | InventoryByLocation | PHARMACIST, ADMIN |
-| /inventory/ai-dashboard | InventoryAIDashboard | PHARMACIST, ADMIN |
-| /pharmacy/queue | PrescriptionQueue | PHARMACIST |
-| /pharmacy/review/:id | PrescriptionReview | PHARMACIST |
-| /pharmacy/dispense/:id | DispenseSummary | PHARMACIST |
-| /chat | ChatInbox | DOCTOR, PHARMACIST |
-| /admin/users | UserManagement | ADMIN |
+| / | HomePage | any authenticated |
+| /patients | PatientList | doctor |
+| /patients/new | PatientForm | doctor |
+| /patients/:id | PatientDetail | doctor |
+| /patients/:id/edit | PatientForm | doctor |
+| /prescriptions | PrescriptionList | doctor |
+| /prescriptions/new | CreatePrescription | doctor |
+| /prescriptions/:id/edit | EditPrescription | doctor |
+| /prescriptions/:id | PrescriptionDetail | doctor/pharmacist |
+| /medications | MedicationCatalog | pharmacist, admin |
+| /inventory | InventoryByLocation | pharmacist, admin |
+| /inventory/ai-dashboard | InventoryAIDashboard | pharmacist, admin |
+| /inventory/:medicationId | InventoryDetail | pharmacist, admin |
+| /pharmacy/queue | PrescriptionQueue | pharmacist |
+| /pharmacy/review/:id | PrescriptionReview | pharmacist |
+| /pharmacy/dispense/:id | DispenseSummary | pharmacist |
+| /chat | ChatInbox | doctor, pharmacist |
+| /admin/users | UserManagement | admin |
 
 ---
 
@@ -321,6 +375,33 @@ VITE_API_BASE_URL=http://localhost:8081
 ### Route Protection
 
 `ProtectedRoute` component in `src/routes/index.tsx` uses `useAuth()` hook (subscribes to AuthContext state). When `isAuthenticated` becomes `false` (logout), the guard reactively redirects to `/login`. Logout in `AppLayout` also explicitly navigates to `/login`.
+
+**Additional routes** (not all listed in the table in section 7): `patients/:id/edit` → `PatientForm`; `prescriptions/:id/edit` → `EditPrescription`; `inventory/:medicationId` → `InventoryDetail`. Catch-all `*` redirects to `/`.
+
+### 6.2 Adapter: flat prescription DTOs vs nested frontend types
+
+`PrescriptionResponse` and `PrescriptionItemResponse` expose **flat** strings from the mapper (`patientName`, `doctorName`, `medicationName`, `dose` as a single field). The frontend `Prescription` / `PrescriptionItem` types also allow nested `patient` / `doctor` / `medication` for **mock** fallback data.
+
+**Rule for UI:** always display names with a fallback chain, e.g.  
+`item.medicationName || item.medication?.tradeName || '—'` and  
+`prescription.patientName || prescription.patient?.fullName`.  
+Used in: `PrescriptionDetail`, `PrescriptionReview`, `DispenseSummary`, `PrescriptionQueue`, `PrescriptionList`.
+
+**`toPrescriptionItem` (`client.ts`)**: backend `dose` may combine number + unit (e.g. `500 mg`). The adapter parses with `/^([\d.]+)\s*(.*)$/` so `dose` and `unit` are not duplicated in the table (avoid showing `500 500`).
+
+### 6.3 JPA, transactions, and lazy loading
+
+`spring.jpa.open-in-view` is **`false`** in `application.yml`. Controllers therefore run **outside** a Hibernate session when serializing.
+
+`PrescriptionService` read methods (`get`, `myPrescriptions`, `queue`) are annotated `@Transactional(readOnly = true)` and call `initializeLazyRelations(p)` to touch `patient`, `doctor`, and each item’s `medication` **inside** the transaction so `ResponseMapper` never triggers `LazyInitializationException`.
+
+If a new endpoint returns entities with lazy associations, either use a read-only transaction + explicit initialization, DTO projections, or `JOIN FETCH` in the repository query.
+
+### 6.4 Prescription create + submit (frontend)
+
+`POST /api/prescriptions` always creates a **DRAFT** (`createDraft`). There is **no** status field on that request that changes behavior.
+
+**Submit to pharmacy:** after a successful create, the client must call **`PUT /api/prescriptions/{id}/submit`**. `prescriptionsApi.update(id, { status: 'submitted' })` maps to that endpoint in `client.ts`. The create-prescription screen uses a two-step mutation: create draft, then submit if the user chose “Submit to Pharmacy”.
 
 ---
 
@@ -395,7 +476,31 @@ ProjectHealthineer/
 
 ---
 
-## 12. Changelog
+## 12. Implementation deep-dive
+
+Short reference for agents changing UI, API adapters, or AI behavior.
+
+### 12.1 Prescription list/detail UI and adapters
+
+- Prefer **flat** backend fields for display: `medicationName`, `patientName`, `doctorName`.
+- Mock path enriches nested objects; real API path may leave nested graphs unset—do not rely on them alone.
+- Clinical note mapping: frontend often uses `clinicalNotes` (plural) in forms; backend DTO field is `clinicalNote` (singular)—`client.ts` maps between them.
+
+### 12.2 `useAiCheckDrugInteractions`
+
+Uses a **stable key** from `patientId` + sorted `medicationId` list, debounced (~800ms), and `lastKeyRef` to avoid rapid refetches when parent re-renders recreate array references. Prevents flicker in the red/amber alert strip on `CreatePrescription`.
+
+### 12.3 `AppLayout` permanent drawer
+
+`MuiDrawer` root and `.MuiDrawer-paper` widths stay in sync (`open ? DRAWER_WIDTH : 0`, constant `260` in `AppLayout.tsx`) with `overflowX: hidden` so the sidebar **pushes** main content instead of overlapping when open.
+
+### 12.4 `CreatePrescription` AI row → form
+
+`normalizeFrequency` / `normalizeRoute` map free-text AI output to select values (`1x`, `2x`, …, `oral`, …). `resolveMedicationId` matches string or numeric IDs against the loaded medication list. Default non-mg unit from suggestions is **`tablet`** (English).
+
+---
+
+## 13. Changelog
 
 | Date | Change | Files Affected |
 |------|--------|----------------|
@@ -426,25 +531,36 @@ ProjectHealthineer/
 | 2026-03-21 | README: Complete rewrite with features, metrics, architecture | README.md |
 | 2026-03-23 | Fix: ProtectedRoute now uses `useAuth()` instead of reading localStorage directly | src/routes/index.tsx |
 | 2026-03-23 | Fix: Logout button navigates to `/login` after clearing auth state | src/layout/AppLayout.tsx |
+| 2026-03-23 | Fix: Prescription reads—`@Transactional` + `initializeLazyRelations` (open-in-view off) | PrescriptionService.java |
+| 2026-03-23 | Fix: Submit flow—create draft then `PUT .../submit`; detail page error state | CreatePrescription.tsx, client.ts, PrescriptionDetail.tsx |
+| 2026-03-23 | Fix: Empty medication column—flat DTO fields + dose/unit parse in adapter | client.ts, prescription/pharmacy views |
+| 2026-03-23 | Fix: AI interaction panel flicker—stable key + debounce | useAiCheckDrugInteractions.ts |
+| 2026-03-24 | Fix: Permanent drawer paper width synced with drawer (no overlay on content) | AppLayout.tsx |
+| 2026-03-24 | UI: Vietnamese strings replaced with English across prescription/inventory/AI types | src/modules/prescriptions/*.tsx, mockData, client, InventoryAIDashboard, ai/types.ts |
+| 2026-03-24 | Docs: SYSTEM_CONTEXT expanded for AI agent onboarding and deep-dive sections | docs/SYSTEM_CONTEXT.md |
 
 ---
 
-## 13. Known Issues & Gotchas
+## 14. Known Issues & Gotchas
 
-### Resolved (Phase 2)
+### Resolved (Phase 2+)
 
-1. ~~**Frontend auth is mock-only**~~ → Now uses real JWT login via backend. Token stored in `healthineer_token`.
-2. ~~**Frontend ↔ Backend ID mismatch**~~ → Adapter layer in `client.ts` converts `Long` → `string` IDs. All CRUD uses real backend data.
-3. ~~**Logout screen freeze**~~ → `ProtectedRoute` now uses `useAuth()` (reactive) instead of reading localStorage directly. Logout also navigates to `/login`.
+1. ~~**Frontend auth is mock-only**~~ → Real JWT login; token in `healthineer_token`.
+2. ~~**Frontend ↔ Backend ID mismatch**~~ → Adapters in `client.ts` (`Long` → `string`).
+3. ~~**Logout screen freeze**~~ → `ProtectedRoute` uses `useAuth()`; logout navigates to `/login`.
+4. ~~**Prescription detail 500 / empty names**~~ → `PrescriptionService` read transactions + lazy init; UI uses flat `medicationName` / `patientName`; dose parsed in adapter.
+5. ~~**AI interaction UI flicker**~~ → Debounced `useAiCheckDrugInteractions` with stable dependency key.
+6. ~~**Sidebar overlapping content**~~ → Drawer root and paper widths synchronized when toggling.
 
 ### Active
 
-3. **Port conflict**: Default port 8080 may conflict with other services. Local profile uses 8081.
-4. **Flyway**: Enabled by default, disabled in local profile. No migration files exist yet (relies on `ddl-auto: update`).
-5. **Groq rate limit**: Free tier = 1,000 req/day for 70B model. Falls back to mock on rate limit errors.
-6. **openFDA**: No API key needed, 40 req/min limit. Drug name matching is substring-based, may produce false positives.
-7. **Chat/Messaging**: `chatApi.getConversations` and `chatApi.getOrCreateByPrescription` still use mock data (backend message API is per-prescription only, no conversation concept).
-8. **Users API**: `usersApi.getAll()` still returns mock users. Backend has no user listing endpoint (only login).
-9. **Inventory locations**: `inventoryApi.getLocations()` still returns mock locations. Backend inventory uses location strings, not a locations table.
-10. **Medication update**: `medicationsApi.update()` still uses mock (backend has no PUT /api/medications/{id} endpoint).
-11. **JWT expiry**: No automatic token refresh. After 3 hours, user must re-login. Failed API calls don't redirect to login page.
+1. **Port conflict**: Default backend port 8080 may be busy; **local** profile uses **8081** (must match `VITE_API_BASE_URL`).
+2. **Flyway**: On in default profile, **off** in local. Schema driven by Hibernate `ddl-auto`; no versioned migrations checked in.
+3. **Groq rate limit**: Free tier limits apply; failures can yield mock responses when `fallback-to-mock: true`.
+4. **openFDA**: Public API, rate limited; heuristic name matching may mis-match or miss interactions.
+5. **Chat/Messaging**: Conversation-style helpers in `client.ts` may still use **mock**; REST messages are per-prescription only.
+6. **Users API**: Listing users may be **mock**—no dedicated admin users list endpoint matching the UI in some paths.
+7. **Inventory locations**: `getLocations()` may be **mock**; backend stores location as string on batches.
+8. **Medication update**: `medicationsApi.update` is **mock-only** (no `PUT /api/medications/{id}`; `MedicationController` exposes GET, POST, GET by id only).
+9. **JWT refresh**: No silent refresh; ~3h expiry, then re-login. Failed 401/403 does not auto-redirect to login in `apiFetch`.
+10. **Router vs API roles**: Typing URLs does not hide pages; **403** from API is expected for wrong role.
