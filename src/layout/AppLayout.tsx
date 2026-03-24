@@ -104,19 +104,30 @@ export function AppLayout() {
         sx={{
           width: open ? DRAWER_WIDTH : 0,
           flexShrink: 0,
+          whiteSpace: 'nowrap',
+          transition: (theme) =>
+            theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: open
+                ? theme.transitions.duration.enteringScreen
+                : theme.transitions.duration.leavingScreen,
+            }),
           '& .MuiDrawer-paper': {
-            width: DRAWER_WIDTH,
+            width: open ? DRAWER_WIDTH : 0,
+            overflowX: 'hidden',
             boxSizing: 'border-box',
             mt: 7,
             transition: (theme) =>
               theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.enteringScreen,
+                duration: open
+                  ? theme.transitions.duration.enteringScreen
+                  : theme.transitions.duration.leavingScreen,
               }),
           },
         }}
       >
-        <Box sx={{ overflow: 'auto', py: 2 }}>
+        <Box sx={{ overflow: 'auto', py: 2, width: DRAWER_WIDTH }}>
           <List>
             {allowedItems.map((item) => (
               <ListItemButton
@@ -134,7 +145,7 @@ export function AppLayout() {
           </List>
         </Box>
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 7, ml: open ? 0 : 0 }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 7 }}>
         <Breadcrumbs sx={{ mb: 2 }}>
           <Link
             component="button"
