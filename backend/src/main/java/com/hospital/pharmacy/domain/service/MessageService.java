@@ -26,8 +26,20 @@ public class MessageService {
         this.userRepository = userRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<Message> list(Long prescriptionId) {
-        return messageRepository.findByPrescription_IdOrderByTimestampAsc(prescriptionId);
+        List<Message> msgs = messageRepository.findByPrescription_IdOrderByTimestampAsc(prescriptionId);
+        // open-in-view is disabled; initialize lazy relations within the transaction boundary
+        for (Message m : msgs) {
+            if (m.getSender() != null) {
+                m.getSender().getFullName();
+                if (m.getSender().getRole() != null) m.getSender().getRole().name();
+            }
+            if (m.getPrescription() != null) {
+                m.getPrescription().getId();
+            }
+        }
+        return msgs;
     }
 
     @Transactional

@@ -152,6 +152,7 @@ export interface Message {
   senderId: string;
   sender?: User;
   senderName?: string;
+  senderRole?: string;
   content: string;
   createdAt: string;
   messageType?: string;

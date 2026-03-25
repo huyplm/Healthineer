@@ -7,6 +7,7 @@ public record MessageResponse(
         Long prescriptionId,
         Long senderId,
         String senderName,
+        String senderRole,
         String content,
         LocalDateTime timestamp,
         String messageType

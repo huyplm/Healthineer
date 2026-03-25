@@ -112,6 +112,7 @@ interface BackendMessage {
   prescriptionId: number;
   senderId: number;
   senderName?: string;
+  senderRole?: string;
   content: string;
   timestamp: string;
   messageType?: string;
@@ -225,6 +226,7 @@ function toMessage(b: BackendMessage, prescriptionId?: string): Message {
     prescriptionId: prescriptionId ?? String(b.prescriptionId),
     senderId: String(b.senderId),
     senderName: b.senderName,
+    senderRole: b.senderRole,
     content: b.content,
     createdAt: b.timestamp,
     messageType: b.messageType,

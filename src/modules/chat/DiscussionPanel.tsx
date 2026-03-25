@@ -37,16 +37,16 @@ export function DiscussionPanel({ prescriptionId }: DiscussionPanelProps) {
   });
 
   const { data: messages = [] } = useQuery({
-    queryKey: ['messages', conversation?.id],
-    queryFn: () => chatApi.getMessages(conversation!.id),
-    enabled: !!conversation?.id,
+    queryKey: ['messages', prescriptionId],
+    queryFn: () => chatApi.getMessages(prescriptionId),
+    enabled: !!prescriptionId,
     refetchInterval: POLL_INTERVAL,
   });
 
   const sendMutation = useMutation({
-    mutationFn: (content: string) => chatApi.sendMessage(conversation!.id, user!.id, content),
+    mutationFn: (content: string) => chatApi.sendMessage(prescriptionId, user!.id, content),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages', conversation?.id] });
+      queryClient.invalidateQueries({ queryKey: ['messages', prescriptionId] });
       setMessage('');
     },
   });
@@ -71,6 +71,15 @@ export function DiscussionPanel({ prescriptionId }: DiscussionPanelProps) {
     );
   }
 
+  const formatSender = (m: { senderName?: string; senderRole?: string; sender?: { name?: string } }) => {
+    const name = m.senderName || m.sender?.name || 'Unknown';
+    const role = (m.senderRole || '').toUpperCase();
+    if (role === 'DOCTOR') return name.startsWith('Dr.') ? name : `Dr. ${name}`;
+    if (role === 'PHARMACIST') return name.includes(', RPh') ? name : `${name}, RPh`;
+    if (role === 'ADMIN') return `${name} (Admin)`;
+    return name;
+  };
+
   return (
     <Paper sx={{ p: 2, height: 560, display: 'flex', flexDirection: 'column' }}>
       <Typography variant="subtitle1" gutterBottom>
@@ -81,7 +90,7 @@ export function DiscussionPanel({ prescriptionId }: DiscussionPanelProps) {
           <ListItem key={m.id} alignItems="flex-start">
             <ListItemText
               primary={m.content}
-              secondary={`${m.sender?.name || 'Unknown'} • ${new Date(m.createdAt).toLocaleString('vi-VN')}`}
+              secondary={`${formatSender(m)} • ${new Date(m.createdAt).toLocaleString('en-US')}`}
               secondaryTypographyProps={{ variant: 'caption' }}
             />
           </ListItem>
@@ -114,7 +123,7 @@ export function DiscussionPanel({ prescriptionId }: DiscussionPanelProps) {
               {m.content}
                 </Box>
               }
-              secondary={new Date(m.createdAt).toLocaleString('vi-VN')}
+              secondary={new Date(m.createdAt).toLocaleString('en-US')}
               secondaryTypographyProps={{ variant: 'caption' }}
             />
           </ListItem>

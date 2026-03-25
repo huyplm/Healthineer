@@ -116,6 +116,7 @@ public final class ResponseMapper {
                 m.getPrescription().getId(),
                 m.getSender().getId(),
                 m.getSender().getFullName(),
+                m.getSender().getRole() == null ? null : m.getSender().getRole().name(),
                 m.getContent(),
                 m.getTimestamp(),
                 m.getMessageType()
