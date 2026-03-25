@@ -41,7 +41,7 @@ export function useAiCheckDrugInteractions(
   const [error, setError] = useState<Error | null>(null);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
   const [overrideReasons, setOverrideReasons] = useState<Record<string, string>>({});
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastKeyRef = useRef<string>('');
 
   const medIds = params?.medicationsInPrescription?.map((m) => m.medicationId).filter(Boolean) ?? [];
