@@ -3,15 +3,11 @@ WORKDIR /app
 
 # Backend build context from monorepo root
 COPY backend/pom.xml ./backend/pom.xml
-COPY backend/mvnw ./backend/mvnw
-COPY backend/mvnw.cmd ./backend/mvnw.cmd
-COPY backend/.mvn ./backend/.mvn
-RUN chmod +x ./backend/mvnw || true
 
 WORKDIR /app/backend
-RUN ./mvnw -q -DskipTests dependency:go-offline
+RUN mvn -q -DskipTests dependency:go-offline
 COPY backend/src ./src
-RUN ./mvnw -q -DskipTests package
+RUN mvn -q -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
