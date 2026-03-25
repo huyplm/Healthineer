@@ -1,13 +1,13 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   application:
     name: pharmacy-backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/hospital
-    username: admin
-    password: pass
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hospital}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:pass}
   jpa:
     hibernate:
       ddl-auto: update
@@ -33,6 +33,8 @@ app:
     issuer: pharmacy-backend
     secret: 0123456789abcdef0123456789abcdef
     expiration-minutes: 180
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   rate-limit:
     requests-per-minute: 120
   ai:

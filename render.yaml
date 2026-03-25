@@ -1,0 +1,28 @@
+databases:
+  - name: healthineer-db
+    plan: free
+    databaseName: healthineer
+    user: healthineer
+    region: oregon
+
+services:
+  - type: web
+    name: healthineer-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: healthineer-db
+          property: connectionString
+      - key: APP_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JAVA_OPTS
+        value: "-XX:MaxRAMPercentage=75.0"
+
