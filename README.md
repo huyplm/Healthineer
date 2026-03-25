@@ -1,5 +1,19 @@
 <p align="center">
-🔗 <a href="https://healthineer-demo.vercel.app/">Healthineer Live Demo</a>
+  <br />
+  <a href="https://healthineer-demo.vercel.app/" target="_blank">
+    <span style="font-size: 28px; font-weight: 800;">
+      🚀 LIVE DEMO: HEALTHINEER
+    </span>
+  </a>
+  <br />
+  <br />
+  <a href="https://healthineer-demo.vercel.app/" target="_blank">
+    <span style="font-size: 20px; font-weight: 600; color: #1976d2;">
+      👉 Click here to open the live demo on Vercel
+    </span>
+  </a>
+  <br />
+  <br />
 </p>
 <p align="center">
   <h1 align="center">Healthineer</h1>
